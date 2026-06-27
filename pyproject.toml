@@ -55,3 +55,11 @@ markers = [
     "slow: full simulation builds (minutes)",
     "sim: calls composite.run()",
 ]
+
+[tool.uv]
+# pbg-basic-processes is pulled in transitively (pbg-superpowers, vivarium-dashboard)
+# via branch-pinned git URLs that uv won't unify ("conflicting URLs"). Force a
+# single precise (commit-pinned) requirement so the whole closure resolves.
+override-dependencies = [
+    "pbg-basic-processes @ git+https://github.com/vivarium-collective/pbg-basic-processes.git@af83ccc834a84af4e4b3bb5d114aca79713cf401",
+]

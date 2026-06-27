@@ -88,25 +88,28 @@ pack to a web-friendly format and push it to the live viewer.
 ## Install
 
 `ecoli_3d` is a thin bridge on top of v2ecoli's whole-cell-model dependency
-stack. The supported install adds it to an environment that already has v2ecoli
-+ pbg-parsimony (e.g. a v2ecoli checkout's `.venv`):
+stack. Clone the repo and sync from the committed lockfile (Python 3.12.12):
 
 ```bash
-uv pip install -e . --no-deps    # or: pip install -e . --no-deps
+uv sync          # fresh, reproducible install of the whole closure from uv.lock
+```
+
+Or add it to an environment that already has v2ecoli + pbg-parsimony (e.g. a
+v2ecoli checkout's `.venv`):
+
+```bash
+uv pip install -e . --no-deps
 ```
 
 `requires-python == 3.12.12` (inherited from v2ecoli). Run the tests with
 `pytest` (the migrated unit suite passes against a post-extraction v2ecoli).
 
-> **Cold-install note.** A from-scratch resolve of the full dependency closure
-> (`uv pip install .` / `uv sync` into an empty env) is currently blocked by a
-> dependency-metadata conflict *inside the v2ecoli ecosystem*: several packages
-> declare `pbg-basic-processes` as identical branch-pinned git URLs that uv
-> refuses to unify. This affects any cold resolve of the v2ecoli stack — which is
-> why those projects install from committed `uv.lock` files rather than
-> resolving live. Install into an existing v2ecoli environment until a lockfile
-> lands here. (`pyproject.toml` mirrors v2ecoli's `[tool.uv.sources]` so the
-> resolve gets as far as possible / is ready once a lock is added.)
+> **Dependency note.** The v2ecoli stack pulls `pbg-basic-processes` through
+> several packages via branch-pinned git URLs that uv won't unify ("conflicting
+> URLs"). `[tool.uv] override-dependencies` pins it to a single commit and the
+> committed `uv.lock` records the full resolution, so `uv sync` installs cleanly
+> from scratch. `pyproject.toml` also mirrors v2ecoli's `[tool.uv.sources]` (uv
+> sources are not transitive, so a consumer must redeclare them).
 
 ## Provenance
 
