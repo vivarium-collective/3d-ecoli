@@ -508,8 +508,11 @@ def categorize(name: str) -> str:
 
 
 def load_state(state_source="snapshot", advance_s=2.0, seed=0):
-    """Return ``(counts, volume_fl)``: counts is ``{ecocyc_id: count}`` (compartment
-    tags stripped, summed); volume in fL."""
+    """Return ``(counts, volume_fl, compartments)``: ``counts`` is
+    ``{ecocyc_id: count}`` (compartment tags stripped, summed across compartments);
+    ``compartments`` is ``{ecocyc_id: tag}`` giving each molecule's DOMINANT
+    compartment letter (c=cytosol, i=inner membrane, p=periplasm, o=outer
+    membrane, m=membrane, e=extracellular); volume in fL."""
     if state_source == "live":
         import v2ecoli
         comp = v2ecoli.build_composite("baseline", seed=seed, cache_dir="out/cache")
@@ -530,10 +533,18 @@ def load_state(state_source="snapshot", advance_s=2.0, seed=0):
         cnts = list(st["counts"])
         volume_fl = float(st["volume"])
     counts = {}
+    by_comp = {}  # base_id -> {tag: count}, to pick the dominant compartment
     for idt, c in zip(ids, cnts):
-        base = idt[:-1].rsplit("[", 1)[0] if idt.endswith("]") and "[" in idt else idt
-        counts[base] = counts.get(base, 0) + int(c)
-    return counts, volume_fl
+        ci = int(c)
+        if idt.endswith("]") and "[" in idt:
+            base, tag = idt[:-1].rsplit("[", 1)
+        else:
+            base, tag = idt, "c"
+        counts[base] = counts.get(base, 0) + ci
+        by_comp.setdefault(base, {})
+        by_comp[base][tag] = by_comp[base].get(tag, 0) + ci
+    compartments = {b: max(t.items(), key=lambda kv: kv[1])[0] for b, t in by_comp.items()}
+    return counts, volume_fl, compartments
 
 
 def _bnum(gene_id, genes):
@@ -678,8 +689,21 @@ def _build_complex_blob(cid, monomers, struct_cache, genes, umap):
     return out
 
 
+def _route_envelope(tag):
+    """Map a v2ecoli compartment tag → (Ingredient.compartment, region) for the
+    gram-negative envelope. Membrane tags → surface (embedded in that bilayer)."""
+    return {
+        "c": ("cytoplasm", "interior"),
+        "p": ("periplasm", "interior"),
+        "i": ("inner_membrane", "surface"),
+        "m": ("inner_membrane", "surface"),   # generic membrane → inner membrane
+        "o": ("outer_membrane", "surface"),
+        "e": ("outer_membrane", "surface"),   # extracellular → on the OM outer face
+    }.get(tag, ("cytoplasm", "interior"))
+
+
 def select_ingredients(counts, *, top_n=40, lipid_count=40000, struct_cache=None,
-                       top_complexes=0):
+                       top_complexes=0, compartments=None):
     """Curated assemblies + assembled complexes from the bulk + the top-N
     most-abundant protein monomers (AlphaFold, skipping individual ribosomal
     proteins) + a membrane lipid. Returns a list of :class:`pbg_parsimony.Ingredient`
@@ -781,19 +805,31 @@ def select_ingredients(counts, *, top_n=40, lipid_count=40000, struct_cache=None
             n_added += 1
         print(f"  complexes: added {n_added}, skipped {n_skipped} (no resolvable subunit structures)")
 
-    # Inner-membrane lipid bilayer: two Fibonacci-tiled leaflets on the cell
-    # surface, offset ±(bilayer/2) along the normal so they read as a real
-    # bilayer. Outer leaflet heads point outward (+z local → surface normal),
-    # inner leaflet heads point inward. (Phase B adds the outer membrane +
-    # periplasm as a nested compartment.)
+    # Route every resolvable ingredient to an envelope compartment by its
+    # dominant v2ecoli tag ([c]/[p]/[i]/[o]/[m]/[e]). Membrane proteins land on
+    # the membrane surface (embedded, transmembrane). Curated assemblies without
+    # a tag keep their default (cytoplasm/interior).
+    comps = compartments or {}
+    for ing in ingredients:
+        tag = comps.get(ing.id)
+        if tag:
+            ing.compartment, ing.region = _route_envelope(tag)
+
+    # Two lipid bilayers — inner membrane (IM) + outer membrane (OM) — each two
+    # Fibonacci-tiled leaflets offset ±(bilayer/2) along the surface normal so
+    # they read as a real bilayer (outer leaflet heads out, inner heads in).
     leaflet = max(1, lipid_count // 2)
-    for tag, off, pv, shade in (("outer", +MEMBRANE_HALF, (0, 0, 1), (0.78, 0.81, 0.90)),
-                                ("inner", -MEMBRANE_HALF, (0, 0, -1), (0.70, 0.74, 0.86))):
-        ingredients.append(Ingredient(
-            id=f"lipid_im_{tag}", count=leaflet, sphere_radius=LIPID_RADIUS,
-            region="surface", packing_mode="tiled", surface_offset=off, principal_vector=pv,
-            display_name=f"Inner-membrane phospholipid ({tag} leaflet)",
-            category="Envelope", color=shade))
+    for memb, comp, base_shade in (("im", "inner_membrane", (0.70, 0.74, 0.86)),
+                                   ("om", "outer_membrane", (0.86, 0.80, 0.70))):
+        for side, off, pv, ds in (("outer", +MEMBRANE_HALF, (0, 0, 1), 0.06),
+                                  ("inner", -MEMBRANE_HALF, (0, 0, -1), -0.04)):
+            shade = tuple(min(1.0, c + ds) for c in base_shade)
+            ingredients.append(Ingredient(
+                id=f"lipid_{memb}_{side}", count=leaflet, sphere_radius=LIPID_RADIUS,
+                region="surface", compartment=comp, packing_mode="tiled",
+                surface_offset=off, principal_vector=pv,
+                display_name=f"{'Inner' if memb=='im' else 'Outer'}-membrane phospholipid ({side} leaflet)",
+                category="Envelope", color=shade))
     return ingredients
 
 
@@ -1137,10 +1173,10 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
     placed once per real copy; large interior assemblies pack first so they reach
     their count). The committed/published pack is additionally compacted to the
     array8 placement format to stay under the 100 MB file limit."""
-    counts, volume_fl = load_state(state_source)
+    counts, volume_fl, compartments = load_state(state_source)
     struct_cache = Path(out_dir) / "structures"
     ingredients = select_ingredients(counts, top_n=top_n, struct_cache=struct_cache,
-                                     top_complexes=top_complexes)
+                                     top_complexes=top_complexes, compartments=compartments)
     # Chromosome landmark molecules, seated by the chromosome stage at their real
     # loci (count=0 → not placed randomly, only at the forks/origins/terminus).
     # The replisome and oriC are genuine unique molecules in the cell state (their
@@ -1164,6 +1200,12 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
     mass_fg = volume_fl * density_g_per_ml * 1000.0
     capsule = shape_from_mass(mass_fg, width_um=width_um,
                               density_g_per_ml=density_g_per_ml)["capsule"]
+    # Gram-negative envelope: the mass-derived capsule is the OUTER membrane; the
+    # inner membrane sits one periplasm-width inside it. Cytoplasm + chromosome
+    # live in the inner compartment; periplasm is the gap between.
+    inner_membrane = Capsule(half_len=max(1.0, capsule.half_len - PERIPLASM_WIDTH),
+                             radius=max(1.0, capsule.radius - PERIPLASM_WIDTH))
+    envelope = {"outer": capsule, "inner": inner_membrane}
     # Chromosome state from the model: number of chromosomes + how far the
     # replication forks have travelled. Each chromosome is laid out as a theta
     # structure with a replication bubble pinched at two forks; DNA contour (and
@@ -1306,7 +1348,7 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
                  if septum_fraction > 0.0 else None)
     res = build_pack(ingredients, capsule, chromosome,
                      out_dir=out_dir, name=name, scale=scale, proxy_lod=proxy_lod,
-                     cell_mesh=cell_mesh)
+                     cell_mesh=cell_mesh, envelope=envelope)
     # Flagella: meshed + injected entirely post-pack (kept out of the packer,
     # whose proxy voxeliser explodes on the 19000 Å tube) as a rear-pole tuft at
     # the true v2ecoli bulk count.
