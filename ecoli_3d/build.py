@@ -824,12 +824,13 @@ def select_ingredients(counts, *, top_n=40, lipid_count=240000, struct_cache=Non
         for side, off, pv, ds in (("outer", +MEMBRANE_HALF, (0, 0, 1), 0.06),
                                   ("inner", -MEMBRANE_HALF, (0, 0, -1), -0.04)):
             shade = tuple(min(1.0, c + ds) for c in base_shade)
+            memb_name = "Inner membrane" if memb == "im" else "Outer membrane"
             ingredients.append(Ingredient(
                 id=f"lipid_{memb}_{side}", count=leaflet, sphere_radius=LIPID_RADIUS,
                 region="surface", compartment=comp, packing_mode="tiled",
                 surface_offset=off, principal_vector=pv,
-                display_name=f"{'Inner' if memb=='im' else 'Outer'}-membrane phospholipid ({side} leaflet)",
-                category="Envelope", color=shade))
+                display_name=f"{memb_name} phospholipid ({side} leaflet)",
+                category=memb_name, color=shade))
     return ingredients
 
 
