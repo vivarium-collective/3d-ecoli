@@ -33,6 +33,12 @@ REPLICHORE_BP = GENOME_BP // 2  # 2,320,826
 # real total bp / dna_mass of the state.
 GENOME_BEADS = 34_000
 
+# Membrane geometry (Å). A phospholipid bilayer is ~40 Å thick; each leaflet's
+# head sits ~half that from the midplane. LIPID_RADIUS is the head-group glyph.
+MEMBRANE_HALF = 20.0   # leaflet offset from the membrane midplane (±)
+LIPID_RADIUS = 14.0
+PERIPLASM_WIDTH = 210.0  # IM→OM spacing (~21 nm) — used in Phase B
+
 
 def _descendant_domains_set(domain_children: dict, root: int) -> set:
     """All transitive descendants of ``root`` (excluding root itself).
@@ -775,10 +781,19 @@ def select_ingredients(counts, *, top_n=40, lipid_count=40000, struct_cache=None
             n_added += 1
         print(f"  complexes: added {n_added}, skipped {n_skipped} (no resolvable subunit structures)")
 
-    ingredients.append(Ingredient(
-        id="lipid", count=lipid_count, sphere_radius=12.0, region="surface",
-        display_name="Membrane phospholipid", category="Envelope",
-        color=(0.75, 0.78, 0.85), principal_vector=(0, 0, 1)))
+    # Inner-membrane lipid bilayer: two Fibonacci-tiled leaflets on the cell
+    # surface, offset ±(bilayer/2) along the normal so they read as a real
+    # bilayer. Outer leaflet heads point outward (+z local → surface normal),
+    # inner leaflet heads point inward. (Phase B adds the outer membrane +
+    # periplasm as a nested compartment.)
+    leaflet = max(1, lipid_count // 2)
+    for tag, off, pv, shade in (("outer", +MEMBRANE_HALF, (0, 0, 1), (0.78, 0.81, 0.90)),
+                                ("inner", -MEMBRANE_HALF, (0, 0, -1), (0.70, 0.74, 0.86))):
+        ingredients.append(Ingredient(
+            id=f"lipid_im_{tag}", count=leaflet, sphere_radius=LIPID_RADIUS,
+            region="surface", packing_mode="tiled", surface_offset=off, principal_vector=pv,
+            display_name=f"Inner-membrane phospholipid ({tag} leaflet)",
+            category="Envelope", color=shade))
     return ingredients
 
 
