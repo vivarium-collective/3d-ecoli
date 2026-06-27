@@ -27,8 +27,26 @@ packages = { find = { where = ["."], include = ["ecoli_3d*"] } }
 "ecoli_3d" = ["data/*.npz", "data/*.csv", "data/*.json", "webapp/*", "publish/*"]
 
 [tool.uv.sources]
+# uv sources are NOT transitive: because we depend on v2ecoli (which resolves its
+# own deps from git, not PyPI), a from-scratch resolve here must declare the same
+# git sources so the transitive pbg/vivarium packages resolve to consistent URLs.
+# Mirrors v2ecoli's [tool.uv.sources] + pbg-basic-processes (pulled in via
+# vivarium-dashboard). Keep in sync with v2ecoli's pyproject.
 v2ecoli = { git = "https://github.com/vivarium-collective/v2ecoli.git", branch = "main" }
+process-bigraph = { git = "https://github.com/vivarium-collective/process-bigraph.git", branch = "main" }
+bigraph-schema = { git = "https://github.com/vivarium-collective/bigraph-schema.git", branch = "main" }
+pbg-superpowers = { git = "https://github.com/vivarium-collective/pbg-superpowers.git", branch = "main" }
+pbg-copasi = { git = "https://github.com/vivarium-collective/pbg-copasi.git", branch = "main" }
 pbg-parsimony = { git = "https://github.com/vivarium-collective/pbg-parsimony.git", branch = "main" }
+pbg-bioreactordesign = { git = "https://github.com/vivarium-collective/pbg-bioreactordesign.git", branch = "main" }
+pbg-ketchup = { git = "https://github.com/vivarium-collective/pbg-ketchup.git", branch = "main" }
+pbg-emitters = { git = "https://github.com/vivarium-collective/pbg-emitters.git", branch = "main" }
+pbg-torch = { git = "https://github.com/vivarium-collective/pbg-torch.git", branch = "main" }
+pbg-basic-processes = { git = "https://github.com/vivarium-collective/pbg-basic-processes.git", branch = "main" }
+vivarium-dashboard = { git = "https://github.com/vivarium-collective/vivarium-dashboard.git", branch = "main" }
+viva-munk = { git = "https://github.com/vivarium-collective/Viva-munk.git", branch = "main" }
+spatio-flux = { git = "https://github.com/vivarium-collective/spatio-flux.git", branch = "main" }
+ecoli-sources = { git = "https://github.com/vivarium-collective/ecoli-sources.git", rev = "e0fcfab181de59666b9f8ad2d1cb80ffe5c2a314" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

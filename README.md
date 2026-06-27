@@ -85,16 +85,28 @@ PARSIMONY_HOME=<parsimony> python -m ecoli_3d.build --out out/ecoli3d --state sn
 `snapshot` (birth) or `division` (pre-division). The publish scripts compact each
 pack to a web-friendly format and push it to the live viewer.
 
-## Install (development)
+## Install
+
+`ecoli_3d` is a thin bridge on top of v2ecoli's whole-cell-model dependency
+stack. The supported install adds it to an environment that already has v2ecoli
++ pbg-parsimony (e.g. a v2ecoli checkout's `.venv`):
 
 ```bash
-# into a Python 3.12.12 env that already has v2ecoli + pbg-parsimony installed:
-pip install -e . --no-deps
+uv pip install -e . --no-deps    # or: pip install -e . --no-deps
 ```
 
-`requires-python == 3.12.12` (inherited from v2ecoli). A full fresh install pulls
-v2ecoli and its whole-cell-model dependency stack via the git sources in
-`pyproject.toml`. Run the tests with `pytest`.
+`requires-python == 3.12.12` (inherited from v2ecoli). Run the tests with
+`pytest` (the migrated unit suite passes against a post-extraction v2ecoli).
+
+> **Cold-install note.** A from-scratch resolve of the full dependency closure
+> (`uv pip install .` / `uv sync` into an empty env) is currently blocked by a
+> dependency-metadata conflict *inside the v2ecoli ecosystem*: several packages
+> declare `pbg-basic-processes` as identical branch-pinned git URLs that uv
+> refuses to unify. This affects any cold resolve of the v2ecoli stack — which is
+> why those projects install from committed `uv.lock` files rather than
+> resolving live. Install into an existing v2ecoli environment until a lockfile
+> lands here. (`pyproject.toml` mirrors v2ecoli's `[tool.uv.sources]` so the
+> resolve gets as far as possible / is ready once a lock is added.)
 
 ## Provenance
 
