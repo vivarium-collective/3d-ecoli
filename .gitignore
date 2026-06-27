@@ -1,0 +1,15 @@
+# build output
+/out/
+/.parsimony/
+**/__pycache__/
+*.pyc
+
+# packaging / envs
+/build/
+/dist/
+*.egg-info/
+.venv/
+/ecoli_3d/data/structures/
+
+# scratch
+/out/_publish/

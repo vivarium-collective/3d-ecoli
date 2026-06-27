@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecoli-3d"
+version = "0.1.0"
+description = "3D structural model of an E. coli cell — packs a v2ecoli molecular state into a 3D cell via pbg-parsimony"
+readme = "README.md"
+requires-python = "==3.12.12"
+dependencies = [
+    # the molecular state + cell-envelope geometry (ShapeStep) come from v2ecoli;
+    # the packing engine (Ingredient/Chromosome/build_pack) from pbg-parsimony.
+    "v2ecoli",
+    "pbg-parsimony",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+packages = { find = { where = ["."], include = ["ecoli_3d*"] } }
+
+[tool.setuptools.package-data]
+# ship the committed cell-state snapshots + reference tables + webapp + publish scripts
+"ecoli_3d" = ["data/*.npz", "data/*.csv", "data/*.json", "webapp/*", "publish/*"]
+
+[tool.uv.sources]
+v2ecoli = { git = "https://github.com/vivarium-collective/v2ecoli.git", branch = "main" }
+pbg-parsimony = { git = "https://github.com/vivarium-collective/pbg-parsimony.git", branch = "main" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "fast: unit / state-reader tests (no simulation)",
+    "slow: full simulation builds (minutes)",
+    "sim: calls composite.run()",
+]
