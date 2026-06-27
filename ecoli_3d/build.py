@@ -702,7 +702,7 @@ def _route_envelope(tag):
     }.get(tag, ("cytoplasm", "interior"))
 
 
-def select_ingredients(counts, *, top_n=40, lipid_count=40000, struct_cache=None,
+def select_ingredients(counts, *, top_n=40, lipid_count=240000, struct_cache=None,
                        top_complexes=0, compartments=None):
     """Curated assemblies + assembled complexes from the bulk + the top-N
     most-abundant protein monomers (AlphaFold, skipping individual ribosomal
