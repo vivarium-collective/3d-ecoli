@@ -23,7 +23,7 @@ MODELS = [("Newborn (birth)", "data/birth/ecoli_3d.pack.json"),
 if VIEW.exists():
     shutil.rmtree(VIEW)
 VIEW.mkdir(parents=True)
-for f in ("viewer.js", "obj-worker.js", "vr.js"):
+for f in ("viewer.js", "obj-worker.js", "vr.js", "vr-helpers.js"):
     shutil.copy2(VSRC / f, VIEW / f)
 
 html = (VSRC / "index.html").read_text()
