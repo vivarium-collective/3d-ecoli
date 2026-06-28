@@ -1348,6 +1348,17 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
                                            depth=septum_fraction,
                                            width=0.28 * capsule.radius)
                  if septum_fraction > 0.0 else None)
+    # Dividing cell: pinch BOTH envelope membranes at the septum so the whole
+    # cell constricts (not just the chromosome). Pass constricted meshes for the
+    # outer + inner membranes; molecules pack inside them and lipids tile on
+    # them, so the membranes neck at midcell and the periplasm is the shell
+    # between the two pinched meshes. The FtsZ ring sits in that waist.
+    if envelope is not None and cell_mesh is not None:
+        im = envelope["inner"]
+        envelope = {**envelope, "outer_mesh": cell_mesh,
+                    "inner_mesh": _constricted_capsule_mesh(
+                        im.half_len, im.radius, depth=septum_fraction,
+                        width=0.28 * im.radius)}
     res = build_pack(ingredients, capsule, chromosome,
                      out_dir=out_dir, name=name, scale=scale, proxy_lod=proxy_lod,
                      cell_mesh=cell_mesh, envelope=envelope)
