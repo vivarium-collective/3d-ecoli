@@ -64,8 +64,12 @@ for f in ecoli_3d.pack.json ecoli_3d.meta.json ecoli_3d_division.pack.json ecoli
   aws s3 cp "$STAGE/$f" "$DST/$f" --endpoint-url "$EP" --content-type application/json
 done
 
-echo "==== viewer.js + index.html ===="; date
-aws s3 cp "$VIEWER_SRC/viewer.js" s3://vivarium-3d/viewer/viewer.js --endpoint-url "$EP" --content-type application/javascript
-aws s3 cp "$STAGE/index.html"     s3://vivarium-3d/viewer/index.html --endpoint-url "$EP" --content-type text/html
+echo "==== viewer.js + vr.js + vr-helpers.js + index.html ===="; date
+# viewer.js imports ./vr.js and ./vr-helpers.js, so all three MUST be uploaded
+# together — shipping viewer.js alone 404s the imports and white-screens the site.
+aws s3 cp "$VIEWER_SRC/viewer.js"     s3://vivarium-3d/viewer/viewer.js     --endpoint-url "$EP" --content-type application/javascript
+aws s3 cp "$VIEWER_SRC/vr.js"         s3://vivarium-3d/viewer/vr.js         --endpoint-url "$EP" --content-type application/javascript
+aws s3 cp "$VIEWER_SRC/vr-helpers.js" s3://vivarium-3d/viewer/vr-helpers.js --endpoint-url "$EP" --content-type application/javascript
+aws s3 cp "$STAGE/index.html"         s3://vivarium-3d/viewer/index.html    --endpoint-url "$EP" --content-type text/html
 
 echo "PUBLISHED v=$VERSION → $PUB_BASE/viewer/index.html"; date
