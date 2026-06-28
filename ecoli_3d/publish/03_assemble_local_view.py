@@ -32,7 +32,7 @@ anchor = '<script type="module" src="./viewer.js'
 if anchor not in html:
     sys.exit("viewer.js script tag not found in index.html")
 html = html.replace(anchor, f'  <script>window.PARSIMONY_MODELS=[{models_js}];</script>\n  ' + anchor, 1)
-html = html.replace("./viewer.js?v=50", "./viewer.js?v=local1")
+html = html.replace("./viewer.js?v=51", "./viewer.js?v=local1")
 (VIEW / "index.html").write_text(html)
 
 for key, outdir in STATES.items():
