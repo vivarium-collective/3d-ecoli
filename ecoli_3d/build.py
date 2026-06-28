@@ -37,7 +37,7 @@ GENOME_BEADS = 34_000
 # head sits ~half that from the midplane. LIPID_RADIUS is the head-group glyph.
 MEMBRANE_HALF = 20.0   # leaflet offset from the membrane midplane (±)
 LIPID_RADIUS = 14.0
-PERIPLASM_WIDTH = 210.0  # IM→OM spacing (~21 nm) — used in Phase B
+# (the IM→OM periplasm geometry now comes from v2ecoli.cell_shape's envelope)
 
 
 def _descendant_domains_set(domain_children: dict, root: int) -> set:
@@ -1199,14 +1199,15 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
     # elongated, about-to-divide capsule.
     from v2ecoli.cell_shape import shape_from_mass
     mass_fg = volume_fl * density_g_per_ml * 1000.0
-    capsule = shape_from_mass(mass_fg, width_um=width_um,
-                              density_g_per_ml=density_g_per_ml)["capsule"]
-    # Gram-negative envelope: the mass-derived capsule is the OUTER membrane; the
-    # inner membrane sits one periplasm-width inside it. Cytoplasm + chromosome
-    # live in the inner compartment; periplasm is the gap between.
-    inner_membrane = Capsule(half_len=max(1.0, capsule.half_len - PERIPLASM_WIDTH),
-                             radius=max(1.0, capsule.radius - PERIPLASM_WIDTH))
-    envelope = {"outer": capsule, "inner": inner_membrane}
+    # The gram-negative envelope geometry comes from v2ecoli.cell_shape (the
+    # authoritative shape model): the mass-derived OUTER membrane capsule + an
+    # INNER membrane whose volume = the cytoplasm and whose shell = the periplasm
+    # (both from the model's periplasm fraction). Cytoplasm + chromosome live in
+    # the inner compartment; periplasm is the gap between the two membranes.
+    shape = shape_from_mass(mass_fg, width_um=width_um, density_g_per_ml=density_g_per_ml)
+    capsule = shape["capsule"]                       # outer membrane (OM)
+    envelope = {"outer": shape["envelope"]["outer_membrane"],
+                "inner": shape["envelope"]["inner_membrane"]}
     # Chromosome state from the model: number of chromosomes + how far the
     # replication forks have travelled. Each chromosome is laid out as a theta
     # structure with a replication bubble pinched at two forks; DNA contour (and
