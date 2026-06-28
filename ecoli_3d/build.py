@@ -1125,12 +1125,18 @@ def _constricted_capsule_mesh(half_len, radius, depth, width=None,
             faces.append((a, b, c))
             faces.append((a, c, d))
     # Cap the two ends with apex points fanned to the first / last rings.
+    # Winding matters: the body rings wind outward (normal points radially
+    # out), so the apex fans must wind to match or the cap normals invert.
+    # An inverted cap flips parry3d's ORIENTED point-in-mesh test across the
+    # whole pole region — the packer then reads "outside" as "inside" and
+    # places molecules out past the cell tips. The low apex faces -x, the
+    # high apex faces +x, hence the opposite vertex order in the two fans.
     apex_lo = len(verts); verts.append((float(-(L + R)), 0.0, 0.0))
     apex_hi = len(verts); verts.append((float(L + R), 0.0, 0.0))
     base = (n_rings - 1) * n_theta
     for j in range(n_theta):
-        faces.append((apex_lo, j, (j + 1) % n_theta))
-        faces.append((apex_hi, base + (j + 1) % n_theta, base + j))
+        faces.append((apex_lo, (j + 1) % n_theta, j))
+        faces.append((apex_hi, base + j, base + (j + 1) % n_theta))
     return verts, faces
 
 
@@ -1182,16 +1188,24 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
     # loci (count=0 → not placed randomly, only at the forks/origins/terminus).
     # The replisome and oriC are genuine unique molecules in the cell state (their
     # counts = active_replisome / oriC counts); terC is the terminus locus.
+    # Enlarged landmark spheres: there are only a handful of each (≈4 oriC, 2 terC,
+    # 4 replisomes) among millions of molecules, so at true molecular size they're
+    # invisible in the crowded cell — esp. the dividing cell's two dense lobes.
+    # Sized well above a typical protein (and given saturated, mutually-distinct
+    # colors) so the replication machinery reads as clear landmarks at their real
+    # loci (placed by the chromosome stage). Rendered as spheres (not the small
+    # 2HPI mesh, which is invisible here): the engine uses sphere_radius only when
+    # structure is None (pbg_parsimony.api), so these carry no click-to-inspect mesh.
     ingredients.append(Ingredient(
-        id="replisome", count=0, structure=StructureRef("pdb", "2HPI"),
-        color=(1.0, 0.35, 0.1), category="Replication", proxy_voxel_size=22.0,
+        id="replisome", count=0, sphere_radius=200.0,
+        color=(1.0, 0.35, 0.1), category="Replication",  # orange
         display_name="Replisome — DNA polymerase III (active_replisome, at fork)"))
     ingredients.append(Ingredient(
-        id="oriC", count=0, sphere_radius=130.0,
+        id="oriC", count=0, sphere_radius=240.0,
         color=(0.95, 0.15, 0.85), category="Replication",  # magenta — distinct from RNA-green/RNAP-blue
         display_name="oriC (origin of replication)"))
     ingredients.append(Ingredient(
-        id="terminus", count=0, sphere_radius=130.0,
+        id="terminus", count=0, sphere_radius=240.0,
         color=(1.0, 0.85, 0.1), category="Replication",  # yellow — distinct from RNAP-blue/replisome-orange
         display_name="terC (replication terminus)"))
     # Cell envelope from the Shape step (Skalnik et al. 2023): fixed width +
