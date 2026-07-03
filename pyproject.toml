@@ -31,7 +31,7 @@ packages = { find = { where = ["."], include = ["ecoli_3d*"] } }
 # own deps from git, not PyPI), a from-scratch resolve here must declare the same
 # git sources so the transitive pbg/vivarium packages resolve to consistent URLs.
 # Mirrors v2ecoli's [tool.uv.sources] + pbg-basic-processes (pulled in via
-# vivarium-dashboard). Keep in sync with v2ecoli's pyproject.
+# vivarium-workbench). Keep in sync with v2ecoli's pyproject.
 v2ecoli = { git = "https://github.com/vivarium-collective/v2ecoli.git", branch = "main" }
 process-bigraph = { git = "https://github.com/vivarium-collective/process-bigraph.git", branch = "main" }
 bigraph-schema = { git = "https://github.com/vivarium-collective/bigraph-schema.git", branch = "main" }
@@ -43,7 +43,7 @@ pbg-ketchup = { git = "https://github.com/vivarium-collective/pbg-ketchup.git", 
 pbg-emitters = { git = "https://github.com/vivarium-collective/pbg-emitters.git", branch = "main" }
 pbg-torch = { git = "https://github.com/vivarium-collective/pbg-torch.git", branch = "main" }
 pbg-basic-processes = { git = "https://github.com/vivarium-collective/pbg-basic-processes.git", branch = "main" }
-vivarium-dashboard = { git = "https://github.com/vivarium-collective/vivarium-dashboard.git", branch = "main" }
+vivarium-workbench = { git = "https://github.com/vivarium-collective/vivarium-dashboard.git", branch = "main" }
 viva-munk = { git = "https://github.com/vivarium-collective/Viva-munk.git", branch = "main" }
 spatio-flux = { git = "https://github.com/vivarium-collective/spatio-flux.git", branch = "main" }
 ecoli-sources = { git = "https://github.com/vivarium-collective/ecoli-sources.git", rev = "e0fcfab181de59666b9f8ad2d1cb80ffe5c2a314" }
@@ -57,7 +57,7 @@ markers = [
 ]
 
 [tool.uv]
-# pbg-basic-processes is pulled in transitively (pbg-superpowers, vivarium-dashboard)
+# pbg-basic-processes is pulled in transitively (pbg-superpowers, vivarium-workbench)
 # via branch-pinned git URLs that uv won't unify ("conflicting URLs"). Force a
 # single precise (commit-pinned) requirement so the whole closure resolves.
 override-dependencies = [
