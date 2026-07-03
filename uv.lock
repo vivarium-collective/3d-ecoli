@@ -317,12 +317,12 @@ wheels = [
 [[package]]
 name = "bigraph-loom"
 version = "0.1.0"
-source = { git = "https://github.com/vivarium-collective/bigraph-loom.git?rev=main#41b556c7f93bc9b65f2ea593ccb82bf15ba386a4" }
+source = { git = "https://github.com/vivarium-collective/bigraph-loom.git?rev=main#5999d489946ca88db77e4c7b7fc2ea722e3a8206" }
 
 [[package]]
 name = "bigraph-schema"
 version = "1.4.2"
-source = { git = "https://github.com/vivarium-collective/bigraph-schema.git?branch=main#1343b86df30715451b0b35c3a9bfc49fda36e8c5" }
+source = { git = "https://github.com/vivarium-collective/bigraph-schema.git?branch=main#87e6b7cdf5b410064e5245f22cd7138b62f64017" }
 dependencies = [
     { name = "fire" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
@@ -1498,6 +1498,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
+]
+
+[[package]]
+name = "investigation-contracts"
+version = "0.2.0"
+source = { git = "https://github.com/vivarium-collective/investigation-contracts.git?branch=main#65c793fd231d952e49a9cfe4244797dadde1bedc" }
+dependencies = [
+    { name = "bigraph-schema" },
+    { name = "pydantic" },
 ]
 
 [[package]]
@@ -2955,8 +2964,8 @@ dependencies = [
 
 [[package]]
 name = "pbg-emitters"
-version = "0.1.0"
-source = { git = "https://github.com/vivarium-collective/pbg-emitters.git?branch=main#7aab974d4887a391988d29140d5b1ae5b69fec15" }
+version = "0.2.0"
+source = { git = "https://github.com/vivarium-collective/pbg-emitters.git?branch=main#760ebe40328b47cb03e3c99f55c9cde943baf9f8" }
 dependencies = [
     { name = "bigraph-schema" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
@@ -3006,14 +3015,13 @@ dependencies = [
 
 [[package]]
 name = "pbg-superpowers"
-version = "0.14.0"
-source = { git = "https://github.com/vivarium-collective/pbg-superpowers.git?branch=main#1af991a8879c130f9c9a158836a8fa29d855ffe8" }
+version = "0.15.0"
+source = { git = "https://github.com/vivarium-collective/pbg-superpowers.git?branch=main#2dcdeea854af11f2cc0a30c569f389d541c19ce0" }
 dependencies = [
     { name = "bigraph-schema" },
     { name = "click" },
     { name = "jinja2" },
     { name = "jsonschema", extra = ["format-nongpl"] },
-    { name = "pbg-basic-processes" },
     { name = "pbg-emitters" },
     { name = "process-bigraph" },
     { name = "pypdf" },
@@ -3195,8 +3203,8 @@ wheels = [
 
 [[package]]
 name = "process-bigraph"
-version = "1.4.18"
-source = { git = "https://github.com/vivarium-collective/process-bigraph.git?branch=main#17e078ec9cba7254656c04c5f34a1edd9838e83d" }
+version = "1.5.0"
+source = { git = "https://github.com/vivarium-collective/process-bigraph.git?branch=main#355fa15c7ec44d630c5658f96dbfc94980bb7720" }
 dependencies = [
     { name = "bigraph-schema" },
     { name = "matplotlib" },
@@ -4529,13 +4537,14 @@ wheels = [
 [[package]]
 name = "v2ecoli"
 version = "0.1.0"
-source = { git = "https://github.com/vivarium-collective/v2ecoli.git?branch=main#60b16b4197e4149042772c0ce07107eacecd2ace" }
+source = { git = "https://github.com/vivarium-collective/v2ecoli.git?branch=main#6bd24b938074a9028fec123f292fd9bab1aa6fe4" }
 dependencies = [
     { name = "bigraph-schema" },
     { name = "biopython" },
     { name = "cvxpy" },
     { name = "dill" },
     { name = "ecoli-sources" },
+    { name = "investigation-contracts" },
     { name = "numba", version = "0.53.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
     { name = "numba", version = "0.65.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
@@ -4559,7 +4568,7 @@ dependencies = [
     { name = "unum" },
     { name = "vecoli", extra = ["dev"] },
     { name = "viva-munk" },
-    { name = "vivarium-dashboard" },
+    { name = "vivarium-workbench" },
 ]
 
 [[package]]
@@ -4676,24 +4685,28 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3e/87/794e0b4c5dccbca3036152fe5df56860a57e70f3e68ac0198dbd7df60fcb/vivarium-core-1.6.5.tar.gz", hash = "sha256:1d83faa60005304b548f623447ab8675a06bb7ed8f6b7c0bd25b4aaa3381fccb", size = 136102, upload-time = "2024-12-03T21:49:29.797Z" }
 
 [[package]]
-name = "vivarium-dashboard"
+name = "vivarium-workbench"
 version = "0.1.0"
-source = { git = "https://github.com/vivarium-collective/vivarium-dashboard.git?branch=main#35ad4d9367632eff103780872c92a0d6e5eac4d8" }
+source = { git = "https://github.com/vivarium-collective/vivarium-dashboard.git?branch=main#ee0ae6734458edfc7d01e6929ce2fd46219b4761" }
 dependencies = [
     { name = "bigraph-loom" },
     { name = "bigraph-schema" },
     { name = "fastapi" },
+    { name = "investigation-contracts" },
     { name = "jinja2" },
     { name = "jsonschema", extra = ["format-nongpl"] },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "numpy", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
     { name = "pbg-basic-processes" },
+    { name = "pbg-emitters", extra = ["xarray"] },
     { name = "pbg-superpowers" },
     { name = "process-bigraph" },
     { name = "pydantic" },
     { name = "pypdf" },
     { name = "pyyaml" },
     { name = "uvicorn" },
+    { name = "xarray" },
+    { name = "zarr" },
 ]
 
 [[package]]
