@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from process_bigraph import Step
-from pbg_superpowers.composite_generator import composite_generator
+from viva_superpowers.composite_generator import composite_generator
 
 
 class EcoliStructuralStep(Step):
