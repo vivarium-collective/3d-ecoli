@@ -1327,65 +1327,15 @@ def _capsules_from_shape(shape):
     return outer, inner, {"outer": outer, "inner": inner}
 
 
-def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
-                state_source="snapshot", proxy_lod=2, top_complexes=150,
-                width_um=1.0, density_g_per_ml=1.1, septum_fraction=None) -> dict:
-    """Build the 3D E. coli pack from a v2ecoli state. Returns build_pack's result.
+def _rnaps_from_state_arrays(rs) -> list:
+    """Build the Chromosome ``rnaps`` list from the RNAP state arrays.
 
-    ``scale`` defaults to 1.0 (true abundance from the state — every molecule is
-    placed once per real copy; large interior assemblies pack first so they reach
-    their count). The committed/published pack is additionally compacted to the
-    array8 placement format to stay under the 100 MB file limit."""
-    counts, volume_fl, compartments = load_state(state_source)
-    struct_cache = Path(out_dir) / "structures"
-    ingredients = select_ingredients(counts, top_n=top_n, struct_cache=struct_cache,
-                                     top_complexes=top_complexes, compartments=compartments)
-    # Chromosome landmark molecules, seated by the chromosome stage at their real
-    # loci (count=0 → not placed randomly, only at the forks/origins/terminus).
-    # The replisome and oriC are genuine unique molecules in the cell state (their
-    # counts = active_replisome / oriC counts); terC is the terminus locus.
-    # Enlarged landmark spheres: there are only a handful of each (≈4 oriC, 2 terC,
-    # 4 replisomes) among millions of molecules, so at true molecular size they're
-    # invisible in the crowded cell — esp. the dividing cell's two dense lobes.
-    # Sized well above a typical protein (and given saturated, mutually-distinct
-    # colors) so the replication machinery reads as clear landmarks at their real
-    # loci (placed by the chromosome stage). Rendered as spheres (not the small
-    # 2HPI mesh, which is invisible here): the engine uses sphere_radius only when
-    # structure is None (pbg_parsimony.api), so these carry no click-to-inspect mesh.
-    ingredients.append(Ingredient(
-        id="replisome", count=0, sphere_radius=200.0,
-        color=(1.0, 0.35, 0.1), category="Replication",  # orange
-        display_name="Replisome — DNA polymerase III (active_replisome, at fork)"))
-    ingredients.append(Ingredient(
-        id="oriC", count=0, sphere_radius=240.0,
-        color=(0.95, 0.15, 0.85), category="Replication",  # magenta — distinct from RNA-green/RNAP-blue
-        display_name="oriC (origin of replication)"))
-    ingredients.append(Ingredient(
-        id="terminus", count=0, sphere_radius=240.0,
-        color=(1.0, 0.85, 0.1), category="Replication",  # yellow — distinct from RNAP-blue/replisome-orange
-        display_name="terC (replication terminus)"))
-    # Cell envelope from the Shape step (Skalnik et al. 2023): fixed width +
-    # density, length derived from volume — so a pre-division state yields the
-    # elongated, about-to-divide capsule.
-    from v2ecoli.cell_shape import shape_from_mass
-    mass_fg = volume_fl * density_g_per_ml * 1000.0
-    # The gram-negative envelope geometry comes from v2ecoli.cell_shape (the
-    # authoritative shape model): the mass-derived OUTER membrane capsule + an
-    # INNER membrane whose volume = the cytoplasm and whose shell = the periplasm
-    # (both from the model's periplasm fraction). Cytoplasm + chromosome live in
-    # the inner compartment; periplasm is the gap between the two membranes.
-    shape = shape_from_mass(mass_fg, width_um=width_um, density_g_per_ml=density_g_per_ml)
-    capsule, _inner, envelope = _capsules_from_shape(shape)
-    # Chromosome state from the model: number of chromosomes + how far the
-    # replication forks have travelled. Each chromosome is laid out as a theta
-    # structure with a replication bubble pinched at two forks; DNA contour (and
-    # so size/mass) scales as n_chromosomes×(1+fork_fraction) — matching the
-    # state's real total DNA bp.
-    n_chrom, fork_fraction = chromosome_state(state_source)
-    rs = rnap_state(state_source)
-    # Coerce chromosome_index / is_daughter to the RNAP count for backward compat:
-    # pre-BF2 snapshots omit these keys → rnap_state returns empty arrays.  Pad
-    # with zeros / False so the zip below always produces one entry per RNAP.
+    Factored out of ``build_model`` so the file-reading wrapper can hand the
+    result to :func:`pack_from_state`. ``rs`` is a dict of arrays as returned by
+    :func:`rnap_state` (keys ``coordinates``/``domain_index``/``is_forward``/
+    ``unique_index``/``chromosome_index``/``is_daughter``). Pre-BF2 snapshots
+    omit the chromosome/daughter fields → they are padded to the RNAP count so
+    the zip always yields one entry per RNAP."""
     n_rnap = len(rs["coordinates"])
     chr_idx = rs["chromosome_index"]
     is_dau = rs["is_daughter"]
@@ -1393,7 +1343,7 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
         chr_idx = np.zeros(n_rnap, dtype="i4")
     if len(is_dau) != n_rnap:
         is_dau = np.zeros(n_rnap, dtype=bool)
-    rnaps = [
+    return [
         {
             "coordinates": int(c), "domain_index": int(d), "is_forward": bool(f),
             "chromosome_index": int(ci), "is_daughter": bool(isd),
@@ -1402,10 +1352,23 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
             rs["coordinates"], rs["domain_index"], rs["is_forward"], chr_idx, is_dau
         )
     ]
-    # Nascent RNA wiring: map each active RNAP's unique_index → (coord, domain,
-    # chromosome_index, is_daughter) so each nascent RNA strand can be rooted at
-    # its transcribing polymerase and inherits its chromosome + daughter status.
-    rnas_raw = rna_state(state_source)
+
+
+def _rnas_from_state_arrays(rs, rnas_raw) -> list:
+    """Build the Chromosome ``rnas`` list from the RNAP + nascent-RNA arrays.
+
+    Each active RNAP's ``unique_index`` is mapped to its (coord, domain,
+    chromosome_index, is_daughter) so a nascent RNA is rooted at its
+    transcribing polymerase and inherits its chromosome/daughter status; an
+    orphaned ``RNAP_index`` (e.g. -1) is a free/terminated cytoplasmic strand
+    (``is_free=True``). Factored out of ``build_model`` (behaviour identical)."""
+    n_rnap = len(rs["coordinates"])
+    chr_idx = rs["chromosome_index"]
+    is_dau = rs["is_daughter"]
+    if len(chr_idx) != n_rnap:
+        chr_idx = np.zeros(n_rnap, dtype="i4")
+    if len(is_dau) != n_rnap:
+        is_dau = np.zeros(n_rnap, dtype=bool)
     rnap_uid_to_cd = {
         int(uid): (int(c), int(d), int(ci), bool(isd))
         for uid, c, d, ci, isd in zip(
@@ -1449,16 +1412,102 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
                 "unique_index": int(unique_index[i]),
             })
             n_nascent += 1
-    print(f"  RNAs: {n_nascent} nascent (wired to {len(rnaps)} active RNAPs)"
-          f" + {n_free} free cytoplasmic → {len(rnas)} total")
-    # Active ribosomes: each placed on its mRNA strand at pos_on_mRNA / length_nt.
-    # mRNA_index must match RNA.unique_index for the placer to locate the strand.
-    rs_ribo = ribosome_state(state_source)
-    ribosomes = [
+    return rnas
+
+
+def _ribosomes_from_state_arrays(rs_ribo) -> list:
+    """Build the Chromosome ``ribosomes`` list from the ribosome state arrays.
+
+    Each active ribosome is placed on its mRNA strand at ``pos_on_mRNA`` /
+    length; ``mRNA_index`` must match an ``RNA.unique_index`` for the placer to
+    locate the strand. Factored out of ``build_model`` (behaviour identical)."""
+    return [
         {"mRNA_index": int(m), "pos_on_mRNA": int(p), "peptide_length": int(l)}
-        for m, p, l in zip(rs_ribo["mRNA_index"], rs_ribo["pos_on_mRNA"], rs_ribo["peptide_length"])
+        for m, p, l in zip(
+            rs_ribo["mRNA_index"], rs_ribo["pos_on_mRNA"], rs_ribo["peptide_length"]
+        )
     ]
-    print(f"  ribosomes: {len(ribosomes)} active (mRNA_index → strand unique_index)")
+
+
+def pack_from_state(out_dir, name, counts, volume_fl, locations=None, *, top_n=40,
+                    scale=0.3, proxy_lod=2, relax=False, cache_dir="out/cache",
+                    relax_params=None, envelope=True, periplasm_gap_A=250.0,
+                    rnaps=None, n_chromosomes=1, fork_fraction=0.0,
+                    # snapshot-only extras (default None → the live/EcoliPackStep
+                    # path omits them and simply doesn't place those species yet).
+                    shape=None, rnas=None, ribosomes=None, septum_fraction=None,
+                    top_complexes=0) -> dict:
+    """Pack a 3D structural model directly from in-memory ``counts``/``volume_fl``
+    (no ``load_state`` file round-trip) — the file-free core of :func:`build_model`.
+
+    ``locations`` holds each molecule's dominant v2ecoli compartment *tag letter*
+    (``c``/``i``/``p``/``o``/``m``/``e``, as :func:`load_state`/
+    :func:`bulk_to_locations` produce); it is routed to the gram-negative envelope
+    via :func:`_route_envelope` inside ``select_ingredients(compartments=...)``.
+
+    Envelope geometry: when ``shape`` (the ``v2ecoli.cell_shape`` dict) is given
+    (the snapshot path via :func:`build_model`) the two membranes come from
+    :func:`_capsules_from_shape`; otherwise (the live ``EcoliPackStep`` path) the
+    outer capsule is sized from ``volume_fl`` via ``Capsule.from_volume_fl`` and
+    the inner membrane is inset by ``periplasm_gap_A``.
+
+    ``rnaps``/``n_chromosomes``/``fork_fraction`` carry the live RNAP loci +
+    replication state into the Chromosome recipe; ``rnas``/``ribosomes``/
+    ``septum_fraction`` are the snapshot-only extras (nascent RNA, active
+    ribosomes, division constriction) that the live path does not yet supply.
+
+    ``relax``/``relax_params``/``cache_dir`` are accepted for signature parity
+    with the v2ecoli builder, but this (richer) ecoli_3d builder has no relax
+    path: ``relax=True`` raises rather than silently ignoring the request.
+    Returns build_pack's result dict (plus ``n_nascent_rnas``/``n_free_rnas``)."""
+    if relax:
+        raise NotImplementedError("relax not yet supported in ecoli_3d builder")
+    rnaps = rnaps or []
+    rnas = rnas or []
+    ribosomes = ribosomes or []
+
+    struct_cache = Path(out_dir) / "structures"
+    ingredients = select_ingredients(counts, top_n=top_n, struct_cache=struct_cache,
+                                     top_complexes=top_complexes, compartments=locations)
+    # Chromosome landmark molecules, seated by the chromosome stage at their real
+    # loci (count=0 → not placed randomly, only at the forks/origins/terminus).
+    # The replisome and oriC are genuine unique molecules in the cell state (their
+    # counts = active_replisome / oriC counts); terC is the terminus locus.
+    # Enlarged landmark spheres: there are only a handful of each (≈4 oriC, 2 terC,
+    # 4 replisomes) among millions of molecules, so at true molecular size they're
+    # invisible in the crowded cell — esp. the dividing cell's two dense lobes.
+    # Sized well above a typical protein (and given saturated, mutually-distinct
+    # colors) so the replication machinery reads as clear landmarks at their real
+    # loci (placed by the chromosome stage). Rendered as spheres (not the small
+    # 2HPI mesh, which is invisible here): the engine uses sphere_radius only when
+    # structure is None (pbg_parsimony.api), so these carry no click-to-inspect mesh.
+    ingredients.append(Ingredient(
+        id="replisome", count=0, sphere_radius=200.0,
+        color=(1.0, 0.35, 0.1), category="Replication",  # orange
+        display_name="Replisome — DNA polymerase III (active_replisome, at fork)"))
+    ingredients.append(Ingredient(
+        id="oriC", count=0, sphere_radius=240.0,
+        color=(0.95, 0.15, 0.85), category="Replication",  # magenta — distinct from RNA-green/RNAP-blue
+        display_name="oriC (origin of replication)"))
+    ingredients.append(Ingredient(
+        id="terminus", count=0, sphere_radius=240.0,
+        color=(1.0, 0.85, 0.1), category="Replication",  # yellow — distinct from RNAP-blue/replisome-orange
+        display_name="terC (replication terminus)"))
+    # Cell envelope. Snapshot path: from the Shape step (Skalnik et al. 2023) —
+    # the mass-derived OUTER membrane capsule + an INNER membrane whose volume =
+    # the cytoplasm and whose shell = the periplasm. Live path: outer capsule
+    # sized from volume_fl, inner membrane inset by periplasm_gap_A.
+    if shape is not None:
+        capsule, _inner, env_full = _capsules_from_shape(shape)
+        env = env_full if envelope else None
+    else:
+        capsule = Capsule.from_volume_fl(volume_fl)
+        env = None
+        if envelope:
+            gap = min(periplasm_gap_A, capsule.radius * 0.4, capsule.half_len * 0.4)
+            inner = Capsule(half_len=max(1.0, capsule.half_len - gap),
+                            radius=max(1.0, capsule.radius - gap))
+            env = {"inner": inner, "outer": capsule}
     # RNA segment ingredient: reuse the dsDNA 1BNA mesh with an RNA-green color so
     # nascent strands render as tiled segments distinct from the chromosome (tan)
     # and RNAP (blue).  count=0 means the packer does not place it randomly — the
@@ -1482,19 +1531,16 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
         color=PEPTIDE_COLOR, category="Translation",
         display_name="Nascent peptide"))
     # Septum: a constricting pre-division cell gets a pinched-capsule envelope (the
-    # membrane + interior follow it). Depth is state-driven — it tracks the cell's
-    # division progress (D-period), so a newborn is a smooth rod and a near-division
-    # cell has a deep waist — but capped at a ~50% medial neck (a constricted
-    # dumbbell: two full-radius lobes joined by a defined septum, not a sharp pinch).
-    # Resolve here so the Chromosome constructor can carry it into the recipe.
+    # membrane + interior follow it). Depth is state-driven (see build_model);
+    # the live path supplies no division progress → no constriction (0.0).
     if septum_fraction is None:
-        septum_fraction = septum_from_progress(division_progress(state_source), max_depth=0.5)
+        septum_fraction = 0.0
     chromosome = Chromosome(
         beads=GENOME_BEADS, spacing=135.0, bead_radius=12.0,
         genome_csv=str(DATA / "ecoli_k12_genes.csv"),
         segment=StructureRef("pdb", "1BNA"),
         supercoil={"radius": 90.0, "pitch": 130.0, "domains": 200},
-        n_chromosomes=n_chrom, fork_fraction=fork_fraction,
+        n_chromosomes=n_chromosomes, fork_fraction=fork_fraction,
         fork_marker="replisome", oric_marker="oriC", ter_marker="terminus",
         rnaps=rnaps, rnap_marker="rna_polymerase",
         rnas=rnas, rna_segment="rna_segment", rna_segment_free="rna_segment_free",
@@ -1503,7 +1549,7 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
         peptide_segment="peptide_segment", peptide_angstrom_per_aa=3.0,
         septum_depth=septum_fraction if septum_fraction else 0.0,
         septum_width=0.28 * capsule.radius)
-    dividing = n_chrom >= 2
+    dividing = n_chromosomes >= 2
     # FtsZ Z-ring constricting the septum — a dividing-cell feature only. Added as a
     # curated ingredient (so it's meshed + in the sidecar); placements arranged into
     # the midcell ring post-pack.
@@ -1521,15 +1567,15 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
     # outer + inner membranes; molecules pack inside them and lipids tile on
     # them, so the membranes neck at midcell and the periplasm is the shell
     # between the two pinched meshes. The FtsZ ring sits in that waist.
-    if envelope is not None and cell_mesh is not None:
-        im = envelope["inner"]
-        envelope = {**envelope, "outer_mesh": cell_mesh,
-                    "inner_mesh": _constricted_capsule_mesh(
-                        im.half_len, im.radius, depth=septum_fraction,
-                        width=0.28 * im.radius)}
+    if env is not None and cell_mesh is not None:
+        im = env["inner"]
+        env = {**env, "outer_mesh": cell_mesh,
+               "inner_mesh": _constricted_capsule_mesh(
+                   im.half_len, im.radius, depth=septum_fraction,
+                   width=0.28 * im.radius)}
     res = build_pack(ingredients, capsule, chromosome,
                      out_dir=out_dir, name=name, scale=scale, proxy_lod=proxy_lod,
-                     cell_mesh=cell_mesh, envelope=envelope)
+                     cell_mesh=cell_mesh, envelope=env)
     # Flagella: meshed + injected entirely post-pack (kept out of the packer,
     # whose proxy voxeliser explodes on the 19000 Å tube) as a rear-pole tuft at
     # the true v2ecoli bulk count.
@@ -1551,9 +1597,53 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
     # fiber species under-placed by area/length limits) so the viewer's "copies
     # placed" is always truthful. Also reports the under-placed.
     _backfill_all_counts(res["pack_path"], res["sidecar_path"])
-    res["n_nascent_rnas"] = n_nascent
+    n_free = sum(1 for r in rnas if r.get("is_free"))
+    res["n_nascent_rnas"] = len(rnas) - n_free
     res["n_free_rnas"] = n_free
     return res
+
+
+def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
+                state_source="snapshot", proxy_lod=2, top_complexes=150,
+                width_um=1.0, density_g_per_ml=1.1, septum_fraction=None) -> dict:
+    """Build the 3D E. coli pack from a v2ecoli state (the file-reading wrapper).
+
+    Reads the saved snapshot via :func:`load_state`/:func:`chromosome_state`/
+    :func:`rnap_state`/:func:`rna_state`/:func:`ribosome_state`/
+    :func:`division_progress`, then hands the assembled in-memory state to
+    :func:`pack_from_state` (the file-free core). Returns build_pack's result.
+
+    ``scale`` defaults to 1.0 (true abundance from the state — every molecule is
+    placed once per real copy; large interior assemblies pack first so they reach
+    their count). The committed/published pack is additionally compacted to the
+    array8 placement format to stay under the 100 MB file limit."""
+    counts, volume_fl, compartments = load_state(state_source)
+    n_chrom, fork_fraction = chromosome_state(state_source)
+    # RNAP loci + nascent RNA + active ribosomes, decoded from the snapshot arrays.
+    rs = rnap_state(state_source)
+    rnaps = _rnaps_from_state_arrays(rs)
+    rnas = _rnas_from_state_arrays(rs, rna_state(state_source))
+    ribosomes = _ribosomes_from_state_arrays(ribosome_state(state_source))
+    n_free = sum(1 for r in rnas if r.get("is_free"))
+    print(f"  RNAs: {len(rnas) - n_free} nascent (wired to {len(rnaps)} active RNAPs)"
+          f" + {n_free} free cytoplasmic → {len(rnas)} total")
+    print(f"  ribosomes: {len(ribosomes)} active (mRNA_index → strand unique_index)")
+    # Cell envelope from the Shape step (Skalnik et al. 2023): fixed width +
+    # density, length derived from volume — so a pre-division state yields the
+    # elongated, about-to-divide capsule.
+    from v2ecoli.cell_shape import shape_from_mass
+    mass_fg = volume_fl * density_g_per_ml * 1000.0
+    shape = shape_from_mass(mass_fg, width_um=width_um, density_g_per_ml=density_g_per_ml)
+    # Septum constriction depth from the cell's division progress (D-period),
+    # capped at a ~50% medial neck. Resolve here so the core carries it into the
+    # Chromosome recipe / constricted envelope.
+    if septum_fraction is None:
+        septum_fraction = septum_from_progress(division_progress(state_source), max_depth=0.5)
+    return pack_from_state(
+        out_dir, name, counts, volume_fl, locations=compartments,
+        top_n=top_n, scale=scale, proxy_lod=proxy_lod, top_complexes=top_complexes,
+        shape=shape, rnaps=rnaps, n_chromosomes=n_chrom, fork_fraction=fork_fraction,
+        rnas=rnas, ribosomes=ribosomes, septum_fraction=septum_fraction)
 
 
 def _backfill_all_counts(pack_path, sidecar_path):
