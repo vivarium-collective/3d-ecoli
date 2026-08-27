@@ -1,0 +1,63 @@
+schema_version: 2
+name: ecoli_3d
+created: '2026-08-27'
+plugin_version: 0.6.1
+package_path: ecoli_3d
+layout:
+  studies: workspace/studies
+  investigations: workspace/investigations
+runtime:
+  # structural-ecoli/s01 packs a single baseline run (birth -> division) into
+  # 3D snapshots; no multi-generation sweep or multiseed parallelism is
+  # needed here (unlike v2ecoli's PDMP validation ensembles).
+  default_emitter: xarray   # 'parquet' | 'sqlite' | 'xarray'
+  max_generations: 1
+  parallel: null             # 'ray' | null
+observables: []
+visualizations: []
+simulations: []
+datasets: []
+imports:
+  # v2ecoli.composites.ecoli_baseline is what ecoli_structural() wraps (see
+  # ecoli_3d/composites/ecoli_structural.py), and v2ecoli's cell-state readers
+  # are what EcoliPackStep pulls molecular counts/chromosome/RNAP state from.
+  v2ecoli:
+    source: https://github.com/vivarium-collective/v2ecoli
+    ref: main
+    mode: reference
+    description: |
+      Whole-cell baseline composite (v2ecoli.composites.ecoli_baseline) that
+      ecoli_3d.composites.ecoli_structural.ecoli_structural wraps, plus the
+      per-agent cell-state readers EcoliPackStep pulls molecular counts,
+      chromosome, and RNAP/replisome state from.
+  pbg_parsimony:
+    source: https://github.com/vivarium-collective/pbg-parsimony
+    ref: main
+    mode: reference
+    description: |
+      Capsule cell-geometry primitive plus the Ingredient/Chromosome/
+      build_pack 3D packing engine (ecoli_3d.build) used to pack the
+      whole-cell molecular state into a gram-negative envelope.
+server:
+  enabled: true
+dashboard:
+  # Registry tab: show ecoli_3d's own classes plus the packages it actually
+  # imports and uses (v2ecoli for the wrapped baseline, pbg_parsimony for the
+  # packing engine), rather than every installed pbg-*/viva-* package that
+  # allocate_core() auto-registers.
+  registry:
+    include: [ecoli_3d, v2ecoli, pbg_parsimony]
+
+ui:
+  # External viewer URLs for Analyses-tab 3D cards, keyed by pack name. The
+  # ecoli_3d whole-cell pack and the structural-ecoli/s01 birth + pre-division
+  # packs are served from Cloudflare R2 (free egress, no GitHub Pages 429
+  # rate-limiting on the heavy pack + meshes); the dashboard card links +
+  # embeds this instead of a bundled gh-pages viewer.
+  viz_viewer_urls:
+    ecoli_3d: "https://pub-eb913fbbdc584bd7add047c823570b13.r2.dev/viewer/index.html?models=https://pub-eb913fbbdc584bd7add047c823570b13.r2.dev/ecoli-3d/viz/3d/models.json"
+    # structural-ecoli s01 (ecoli_structural overhaul): birth + pre-division
+    # packs hosted on the same R2 bucket under its own structural-ecoli/ prefix
+    # (2-model dropdown). Keyed by this study's pack names.
+    initial: "https://pub-eb913fbbdc584bd7add047c823570b13.r2.dev/structural-ecoli/index.html"
+    pre-division: "https://pub-eb913fbbdc584bd7add047c823570b13.r2.dev/structural-ecoli/index.html"
