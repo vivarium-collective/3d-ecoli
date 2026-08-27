@@ -9,12 +9,12 @@ print the serve command. See REPRODUCE.md §7.
     /Users/eranagmon/code/v2ecoli/.venv/bin/python ecoli_3d/publish/03_assemble_local_view.py
     # then:  python -m http.server 8799 --bind 127.0.0.1   (from out/ecoli3d/_view)
 """
-import os, shutil, sys
+import importlib.util, os, shutil, sys
 from pathlib import Path
 
 ROOT = Path(os.environ.get("BUILD_ROOT", ".")).resolve()
-VSRC = Path(os.environ.get("VIEWER_SRC",
-            "/Users/eranagmon/code/pbg-parsimony/pbg_parsimony/viewer"))
+_DEFAULT_VIEWER_SRC = Path(importlib.util.find_spec("pbg_parsimony").origin).parent / "viewer"
+VSRC = Path(os.environ.get("VIEWER_SRC", str(_DEFAULT_VIEWER_SRC)))
 VIEW = ROOT / "out/ecoli3d/_view"
 STATES = {"birth": ROOT / "out/ecoli3d", "div": ROOT / "out/ecoli3d-div"}
 MODELS = [("Newborn (birth)", "data/birth/ecoli_3d.pack.json"),
