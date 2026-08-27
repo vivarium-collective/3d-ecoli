@@ -13,3 +13,6 @@
 
 # scratch
 /out/_publish/
+
+# large generated 3D packs (>90-180 MB per snapshot) — never committed
+workspace/studies/s01-birth-and-division/viz/3d/
