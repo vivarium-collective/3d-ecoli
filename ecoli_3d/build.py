@@ -122,32 +122,27 @@ def bulk_to_counts(bulk) -> dict:
     return counts
 
 
-# E. coli bulk-id compartment tag (the trailing ``[x]``) → parsimony envelope
-# compartment. ``e``/``l``/``j``/``s`` and untagged ids fall through to
-# "cytoplasm" via ``.get(tag, "cytoplasm")`` below.
-_TAG_TO_COMPARTMENT = {
-    "c": "cytoplasm", "i": "inner_membrane", "p": "periplasm",
-    "o": "outer_membrane", "m": "inner_membrane",  # generic membrane → inner
-}
-
-
 def bulk_to_locations(bulk) -> dict:
-    """{ecocyc_id: parsimony compartment} from the [x] compartment tag on each
-    bulk id — the molecule's dominant location (by summed count across tags)."""
+    """{ecocyc_id: dominant v2ecoli compartment TAG LETTER} from the [x]
+    compartment tag on each bulk id (c=cytosol, i=inner membrane, p=periplasm,
+    o=outer membrane, m=membrane, e=extracellular; untagged ids default to
+    "c") — the molecule's dominant location, by summed count across tags.
+    Mirrors :func:`load_state`'s ``compartments`` return. The tag letter (not
+    a compartment name) is what downstream :func:`_route_envelope` (via
+    :func:`select_ingredients(compartments=...)`) expects."""
     ids = [str(x) for x in bulk["id"]]
     cnts = list(bulk["count"])
-    # base_id -> {compartment: total count}
+    # base_id -> {tag: total count}
     agg = {}
     for idt, c in zip(ids, cnts):
         if idt.endswith("]") and "[" in idt:
             base, tag = idt[:-1].rsplit("[", 1)
         else:
             base, tag = idt, "c"
-        comp = _TAG_TO_COMPARTMENT.get(tag, "cytoplasm")
-        agg.setdefault(base, {}).setdefault(comp, 0)
-        agg[base][comp] += int(c)
-    # dominant compartment per base id
-    return {base: max(comps.items(), key=lambda kv: kv[1])[0] for base, comps in agg.items()}
+        agg.setdefault(base, {}).setdefault(tag, 0)
+        agg[base][tag] += int(c)
+    # dominant tag letter per base id
+    return {base: max(tags.items(), key=lambda kv: kv[1])[0] for base, tags in agg.items()}
 
 
 def _active_rows(arr):

@@ -15,7 +15,7 @@ def test_bulk_to_counts_sums_and_strips_tag():
 def test_bulk_to_locations_dominant_compartment():
     bulk = _bulk(["GLC[c]", "GLC[p]"], [1, 9])
     loc = build.bulk_to_locations(bulk)
-    assert loc["GLC"] == build._TAG_TO_COMPARTMENT["p"]
+    assert loc["GLC"] == "p"
 
 
 def test_chromosome_state_from_live_unreplicated():
