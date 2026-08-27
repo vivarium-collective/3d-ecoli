@@ -1318,6 +1318,15 @@ def compact_to_array8(pack_path):
     return d
 
 
+def _capsules_from_shape(shape):
+    """Rebuild pbg_parsimony Capsules from cell_shape's numeric fields
+    (cell_shape now returns plain floats, not Capsule objects)."""
+    from pbg_parsimony import Capsule
+    outer = Capsule(half_len=shape["half_len_A"], radius=shape["radius_A"])
+    inner = Capsule(half_len=shape["inner_half_len_A"], radius=shape["inner_radius_A"])
+    return outer, inner, {"outer": outer, "inner": inner}
+
+
 def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
                 state_source="snapshot", proxy_lod=2, top_complexes=150,
                 width_um=1.0, density_g_per_ml=1.1, septum_fraction=None) -> dict:
@@ -1366,9 +1375,7 @@ def build_model(out_dir="out/ecoli3d", *, name="ecoli_3d", top_n=40, scale=1.0,
     # (both from the model's periplasm fraction). Cytoplasm + chromosome live in
     # the inner compartment; periplasm is the gap between the two membranes.
     shape = shape_from_mass(mass_fg, width_um=width_um, density_g_per_ml=density_g_per_ml)
-    capsule = shape["capsule"]                       # outer membrane (OM)
-    envelope = {"outer": shape["envelope"]["outer_membrane"],
-                "inner": shape["envelope"]["inner_membrane"]}
+    capsule, _inner, envelope = _capsules_from_shape(shape)
     # Chromosome state from the model: number of chromosomes + how far the
     # replication forks have travelled. Each chromosome is laid out as a theta
     # structure with a replication bubble pinched at two forks; DNA contour (and
