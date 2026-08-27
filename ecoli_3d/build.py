@@ -12,6 +12,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -19,6 +20,8 @@ import numpy as np
 
 from pbg_parsimony import Ingredient, Capsule, Chromosome, StructureRef, build_pack
 from pbg_parsimony.structures import fetch
+
+log = logging.getLogger(__name__)
 
 DATA = Path(__file__).parent / "data"
 
@@ -105,6 +108,150 @@ def classify_domains(
         # If not matched: defaults remain (chromosome_index=0, is_daughter=False).
 
     return chromosome_index, is_daughter
+
+
+def bulk_to_counts(bulk) -> dict:
+    """A live ``['bulk']`` store (structured array with ``id``/``count`` fields)
+    → ``{ecocyc_id: summed_count}``, compartment tags stripped."""
+    ids = [str(x) for x in bulk["id"]]
+    cnts = list(bulk["count"])
+    counts = {}
+    for idt, c in zip(ids, cnts):
+        base = idt[:-1].rsplit("[", 1)[0] if idt.endswith("]") and "[" in idt else idt
+        counts[base] = counts.get(base, 0) + int(c)
+    return counts
+
+
+# E. coli bulk-id compartment tag (the trailing ``[x]``) → parsimony envelope
+# compartment. ``e``/``l``/``j``/``s`` and untagged ids fall through to
+# "cytoplasm" via ``.get(tag, "cytoplasm")`` below.
+_TAG_TO_COMPARTMENT = {
+    "c": "cytoplasm", "i": "inner_membrane", "p": "periplasm",
+    "o": "outer_membrane", "m": "inner_membrane",  # generic membrane → inner
+}
+
+
+def bulk_to_locations(bulk) -> dict:
+    """{ecocyc_id: parsimony compartment} from the [x] compartment tag on each
+    bulk id — the molecule's dominant location (by summed count across tags)."""
+    ids = [str(x) for x in bulk["id"]]
+    cnts = list(bulk["count"])
+    # base_id -> {compartment: total count}
+    agg = {}
+    for idt, c in zip(ids, cnts):
+        if idt.endswith("]") and "[" in idt:
+            base, tag = idt[:-1].rsplit("[", 1)
+        else:
+            base, tag = idt, "c"
+        comp = _TAG_TO_COMPARTMENT.get(tag, "cytoplasm")
+        agg.setdefault(base, {}).setdefault(comp, 0)
+        agg[base][comp] += int(c)
+    # dominant compartment per base id
+    return {base: max(comps.items(), key=lambda kv: kv[1])[0] for base, comps in agg.items()}
+
+
+def _active_rows(arr):
+    """Filter a live unique-molecule structured array down to its ACTIVE rows
+    (``_entryState`` != 0). v2ecoli's unique-molecule stores are pre-allocated
+    with spare capacity; inactive slots must be excluded from any count or
+    per-row read — mirrors the ``arr[arr["_entryState"].view(bool)]`` pattern
+    used throughout ``v2ecoli/processes/*`` and ``v2ecoli/bridge.py``.
+
+    Arrays lacking an ``_entryState`` field (e.g. synthetic arrays built
+    directly by unit tests) are returned unchanged — every row is treated as
+    active, so tests can hand in bare structured arrays with just the fields
+    they care about.
+    """
+    if arr is None:
+        return None
+    if getattr(arr, "dtype", None) is not None and arr.dtype.names and "_entryState" in arr.dtype.names:
+        return arr[arr["_entryState"].astype(bool)]
+    return arr
+
+
+def chromosome_state_from_live(full_chromosome, active_replisome=None) -> "tuple[int, float]":
+    """``(n_chromosomes, fork_fraction)`` from LIVE unique-molecule arrays.
+
+    ``full_chromosome`` is the live ``['unique']['full_chromosome']`` store
+    (one row per chromosome copy; ``n_chromosomes`` = its active row count).
+    ``fork_fraction`` is the mean replication-fork position — read from the
+    live ``active_replisome`` store's ``coordinates`` field, expressed as a
+    fraction of :data:`REPLICHORE_BP` (0 = unreplicated) — computed exactly
+    the way ``scripts/capture_structural_snapshot.py`` derives it on
+    ``feat/3d-transcription-translation``.
+
+    When ``active_replisome`` isn't wired/available, ``fork_fraction`` falls
+    back to ``0.0`` (an unreplicated chromosome) rather than fabricating a
+    value, and a message is logged.
+    """
+    fc = _active_rows(full_chromosome)
+    n_chromosomes = int(len(fc)) if fc is not None else 0
+
+    fork_fraction = 0.0
+    if active_replisome is None:
+        log.info("chromosome_state_from_live: no active_replisome data available; "
+                 "fork_fraction defaults to 0.0 (unreplicated)")
+    else:
+        rep = _active_rows(active_replisome)
+        if rep is not None and len(rep) > 0 and "coordinates" in rep.dtype.names:
+            # Mean fork position as a fraction of the replichore. Clamp to
+            # [0, 0.95]: forks travel oriC→terC (coordinate ≤ REPLICHORE_BP),
+            # so near division a fork can reach ~terC; cap just under 1.0 so the
+            # theta-bubble mapping never over-stretches to a degenerate terminus.
+            fork_fraction = min(0.95, float(np.mean(np.abs(rep["coordinates"]))) / REPLICHORE_BP)
+        else:
+            log.info("chromosome_state_from_live: active_replisome present but empty "
+                     "(or missing 'coordinates'); fork_fraction defaults to 0.0")
+    return n_chromosomes, fork_fraction
+
+
+def rnaps_from_live(active_rnap, full_chromosome=None, chromosome_domain=None) -> list:
+    """``rnaps`` list for :class:`pbg_parsimony.Chromosome` from LIVE arrays.
+
+    Each entry is ``{"coordinates": int, "domain_index": int, "is_forward":
+    bool, "chromosome_index": int, "is_daughter": bool}`` — the first three
+    are what ``pbg_parsimony.Chromosome.rnaps`` documents; the trailing two
+    are additive (the parsimony recipe/engine accept and pass them through;
+    see ``parsimony`` ``RawRnap`` — ``#[serde(default)]`` on both) and route
+    each RNAP onto the correct chromosome/daughter copy when replication data
+    is available.
+
+    ``active_rnap`` is the live ``['unique']['active_RNAP']`` store.
+    ``full_chromosome``/``chromosome_domain`` (optional) supply the domain
+    lineage :func:`classify_domains` needs to resolve ``chromosome_index``/
+    ``is_daughter``; without them every RNAP defaults to chromosome 0,
+    is_daughter=False (i.e. treated as living on the (sole) primary
+    chromosome — never fabricated as a daughter).
+    """
+    rn = _active_rows(active_rnap)
+    if rn is None or len(rn) == 0:
+        return []
+
+    coords = rn["coordinates"]
+    domains = rn["domain_index"]
+    is_forward = (rn["is_forward"] if "is_forward" in rn.dtype.names
+                 else np.ones(len(rn), dtype=bool))
+
+    chrom_idx = np.zeros(len(rn), dtype=np.int32)
+    is_dau = np.zeros(len(rn), dtype=bool)
+    fc = _active_rows(full_chromosome) if full_chromosome is not None else None
+    if fc is not None and len(fc) > 0 and "domain_index" in fc.dtype.names:
+        fc_domains = [int(x) for x in fc["domain_index"]]
+        domain_children: dict = {}
+        cd = _active_rows(chromosome_domain) if chromosome_domain is not None else None
+        if cd is not None and {"domain_index", "child_domains"}.issubset(set(cd.dtype.names)):
+            for entry in cd:
+                parent = int(entry["domain_index"])
+                kids = [int(k) for k in entry["child_domains"] if int(k) >= 0]
+                if kids:
+                    domain_children[parent] = kids
+        chrom_idx, is_dau = classify_domains(domain_children, fc_domains, domains)
+
+    return [
+        {"coordinates": int(c), "domain_index": int(d), "is_forward": bool(f),
+         "chromosome_index": int(ci), "is_daughter": bool(isd)}
+        for c, d, f, ci, isd in zip(coords, domains, is_forward, chrom_idx, is_dau)
+    ]
 
 
 def chromosome_state(state_source="snapshot"):
