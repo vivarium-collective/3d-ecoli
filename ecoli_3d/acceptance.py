@@ -19,7 +19,7 @@ This module defines the concrete, artifact-derived gate the study's
   written, count-conservation (placed vs requested), no over-pack, and the
   birth->division growth direction (more instances, conserved composition,
   envelope elongation). Requires a real pack, which needs the newer
-  ``pbg_parsimony`` API + the ``parsimony`` binary + network structure fetches
+  ``viva_parsimony`` API + the ``parsimony`` binary + network structure fetches
   (see SUMMARY.md / the study's reproducibility note). When the artifacts are
   absent this returns ``available=False`` rather than a false pass.
 """
@@ -57,7 +57,7 @@ def check_selection_conservation(counts: dict[str, int], *, top_n: int = 40) -> 
 
     Returns ``{passed, n_ingredients, n_from_counts, count_mismatches,
     deterministic}``. Uses a permissive Ingredient shim so it does not depend on
-    the installed ``pbg_parsimony`` API version (which lags ecoli_3d's
+    the installed ``viva_parsimony`` API version (which lags ecoli_3d's
     ``build.py`` in the canonical env)."""
     import ecoli_3d.build as B
 
@@ -127,7 +127,7 @@ def evaluate_pack_gate(study_dir: str | Path,
     Returns ``{available, tests: {name: {passed, ...}}, snapshots: {...}}``.
     ``available`` is False (with no ``tests``) when the pack artifacts are not on
     disk — the canonical env cannot currently PRODUCE them (missing parsimony
-    binary + stale pbg_parsimony), so their absence is reported as unavailable,
+    binary + stale viva_parsimony), so their absence is reported as unavailable,
     never as a silent pass."""
     viz_dir = Path(study_dir) / "viz" / "3d"
     loaded = {name: _read_snapshot(viz_dir, name) for name in snapshots}
