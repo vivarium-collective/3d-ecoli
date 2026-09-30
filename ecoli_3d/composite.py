@@ -6,7 +6,7 @@ A one-shot Step pipeline (packing is a snapshot operation, not time-stepping):
 
 The Step reads the molecular state (a saved snapshot or a live ``baseline``
 run), selects species + maps them to real structures, and hands them to
-pbg-parsimony's engine. The resulting pack + ingredient sidecar are what the
+viva-parsimony's engine. The resulting pack + ingredient sidecar are what the
 3D webapp renders.
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ from viva_superpowers.composite_generator import composite_generator
 
 
 class EcoliStructuralStep(Step):
-    """Pack a 3D E. coli cell from a v2ecoli molecular state via pbg-parsimony."""
+    """Pack a 3D E. coli cell from a v2ecoli molecular state via viva-parsimony."""
 
     config_schema = {
         "out_dir": {"_type": "string", "_default": "out/ecoli3d"},
@@ -47,7 +47,7 @@ class EcoliStructuralStep(Step):
 @composite_generator(
     name="parsimony-ecoli",
     description="3D structural model of an E. coli cell: reads a v2ecoli molecular "
-                "state and packs it into an interactive 3D scene with pbg-parsimony "
+                "state and packs it into an interactive 3D scene with viva-parsimony "
                 "(parsimony engine). Output (pack.json + ingredient sidecar) renders "
                 "in the bundled 3D webapp.",
     parameters={

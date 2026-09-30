@@ -3,7 +3,7 @@
 The v2ecoli-specific half of the structural pipeline: pick which species to
 place, map them to real structures (curated PDB assemblies + AlphaFold per
 UniProt), label them with EcoCyc names + functional categories, and hand the
-ingredient list to :func:`pbg_parsimony.build_pack` (the generic engine).
+ingredient list to :func:`viva_parsimony.build_pack` (the generic engine).
 
 State source: a saved snapshot (``data/v2ecoli_state.npz``, the default — fast,
 reproducible) or a live ``baseline`` composite run (``state_source="live"``).
@@ -18,8 +18,8 @@ from pathlib import Path
 
 import numpy as np
 
-from pbg_parsimony import Ingredient, Capsule, Chromosome, StructureRef, build_pack
-from pbg_parsimony.structures import fetch
+from viva_parsimony import Ingredient, Capsule, Chromosome, StructureRef, build_pack
+from viva_parsimony.structures import fetch
 
 log = logging.getLogger(__name__)
 
@@ -201,11 +201,11 @@ def chromosome_state_from_live(full_chromosome, active_replisome=None) -> "tuple
 
 
 def rnaps_from_live(active_rnap, full_chromosome=None, chromosome_domain=None) -> list:
-    """``rnaps`` list for :class:`pbg_parsimony.Chromosome` from LIVE arrays.
+    """``rnaps`` list for :class:`viva_parsimony.Chromosome` from LIVE arrays.
 
     Each entry is ``{"coordinates": int, "domain_index": int, "is_forward":
     bool, "chromosome_index": int, "is_daughter": bool}`` — the first three
-    are what ``pbg_parsimony.Chromosome.rnaps`` documents; the trailing two
+    are what ``viva_parsimony.Chromosome.rnaps`` documents; the trailing two
     are additive (the parsimony recipe/engine accept and pass them through;
     see ``parsimony`` ``RawRnap`` — ``#[serde(default)]`` on both) and route
     each RNAP onto the correct chromosome/daughter copy when replication data
@@ -848,7 +848,7 @@ def select_ingredients(counts, *, top_n=40, lipid_count=240000, struct_cache=Non
                        top_complexes=0, compartments=None):
     """Curated assemblies + assembled complexes from the bulk + the top-N
     most-abundant protein monomers (AlphaFold, skipping individual ribosomal
-    proteins) + a membrane lipid. Returns a list of :class:`pbg_parsimony.Ingredient`
+    proteins) + a membrane lipid. Returns a list of :class:`viva_parsimony.Ingredient`
     (counts are pre-scale; build_pack scales). ``struct_cache`` is where composite
     complex structures are assembled (defaults to a temp dir)."""
     import tempfile
@@ -1314,9 +1314,9 @@ def compact_to_array8(pack_path):
 
 
 def _capsules_from_shape(shape):
-    """Rebuild pbg_parsimony Capsules from cell_shape's numeric fields
+    """Rebuild viva_parsimony Capsules from cell_shape's numeric fields
     (cell_shape now returns plain floats, not Capsule objects)."""
-    from pbg_parsimony import Capsule
+    from viva_parsimony import Capsule
     outer = Capsule(half_len=shape["half_len_A"], radius=shape["radius_A"])
     inner = Capsule(half_len=shape["inner_half_len_A"], radius=shape["inner_radius_A"])
     return outer, inner, {"outer": outer, "inner": inner}
@@ -1475,7 +1475,7 @@ def pack_from_state(out_dir, name, counts, volume_fl, locations=None, *, top_n=4
     # colors) so the replication machinery reads as clear landmarks at their real
     # loci (placed by the chromosome stage). Rendered as spheres (not the small
     # 2HPI mesh, which is invisible here): the engine uses sphere_radius only when
-    # structure is None (pbg_parsimony.api), so these carry no click-to-inspect mesh.
+    # structure is None (viva_parsimony.api), so these carry no click-to-inspect mesh.
     ingredients.append(Ingredient(
         id="replisome", count=0, sphere_radius=200.0,
         color=(1.0, 0.35, 0.1), category="Replication",  # orange

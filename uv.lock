@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [manifest]
-overrides = [{ name = "pbg-basic-processes", git = "https://github.com/vivarium-collective/pbg-basic-processes.git?branch=main" }]
+overrides = [{ name = "viva-basic-processes", git = "https://github.com/vivarium-collective/viva-basic-processes.git?branch=main" }]
 
 [[package]]
 name = "absl-py"
@@ -903,8 +903,9 @@ source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
     { name = "numpy", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
-    { name = "pbg-parsimony" },
     { name = "v2ecoli" },
+    { name = "viva-parsimony" },
+    { name = "viva-workspace" },
 ]
 
 [package.optional-dependencies]
@@ -915,9 +916,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "numpy" },
-    { name = "pbg-parsimony", git = "https://github.com/vivarium-collective/pbg-parsimony.git?branch=main" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "v2ecoli", git = "https://github.com/vivarium-collective/v2ecoli.git?branch=main" },
+    { name = "viva-parsimony", git = "https://github.com/vivarium-collective/viva-parsimony.git?branch=main" },
+    { name = "viva-workspace", git = "https://github.com/vivarium-collective/viva-workspace.git?branch=main" },
 ]
 provides-extras = ["dev"]
 
@@ -4664,6 +4666,23 @@ dependencies = [
     { name = "plum-dispatch" },
     { name = "process-bigraph" },
     { name = "pymunk" },
+]
+
+[[package]]
+name = "viva-parsimony"
+version = "0.1.0"
+source = { git = "https://github.com/vivarium-collective/viva-parsimony.git?branch=main#18e053096f54d0046425e273496dcfa0d41cbc21" }
+dependencies = [
+    { name = "bigraph-schema" },
+    { name = "process-bigraph" },
+]
+
+[[package]]
+name = "viva-workspace"
+version = "0.1.0"
+source = { git = "https://github.com/vivarium-collective/viva-workspace.git?branch=main#c927f36aaf7b6927930762295325c0f89b5867cd" }
+dependencies = [
+    { name = "pyyaml" },
 ]
 
 [[package]]

@@ -13,7 +13,7 @@ import importlib.util, os, shutil, sys
 from pathlib import Path
 
 ROOT = Path(os.environ.get("BUILD_ROOT", ".")).resolve()
-_DEFAULT_VIEWER_SRC = Path(importlib.util.find_spec("pbg_parsimony").origin).parent / "viewer"
+_DEFAULT_VIEWER_SRC = Path(importlib.util.find_spec("viva_parsimony").origin).parent / "viewer"
 VSRC = Path(os.environ.get("VIEWER_SRC", str(_DEFAULT_VIEWER_SRC)))
 VIEW = ROOT / "out/ecoli3d/_view"
 STATES = {"birth": ROOT / "out/ecoli3d", "div": ROOT / "out/ecoli3d-div"}
