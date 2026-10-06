@@ -15,6 +15,13 @@ dependencies = [
     "viva-parsimony",
     "viva-workspace",
     "numpy",
+    # Ceiling: pint 0.26 changed its micro-sign rendering (ASCII 'u' → Greek 'μ'),
+    # which breaks v2ecoli's pint↔unum unit bridge — building the ParCa sim-input
+    # cache then dies with KeyError: 'μmol' (unum's table registers 'umol'), so any
+    # whole-cell-baseline composite (e.g. ecoli_structural) fails to build/loom.
+    # A full `uv lock --upgrade` otherwise pulls 0.26.1; cap until the bridge
+    # handles the new glyph. v2ecoli's own venv runs 0.25.3.
+    "pint<0.26",
     # The interactive workbench that serves this workspace's Studies / 3D viewers.
     # Declared directly (not just via [tool.uv.sources]) so it is actually
     # installed — v2ecoli moved it to an optional [report] extra, so it is no
