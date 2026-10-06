@@ -15,6 +15,11 @@ dependencies = [
     "viva-parsimony",
     "viva-workspace",
     "numpy",
+    # The interactive workbench that serves this workspace's Studies / 3D viewers.
+    # Declared directly (not just via [tool.uv.sources]) so it is actually
+    # installed — v2ecoli moved it to an optional [report] extra, so it is no
+    # longer pulled in transitively. Tracks vivarium-workbench main (0.4.1+).
+    "vivarium-workbench",
 ]
 
 [project.optional-dependencies]
@@ -35,7 +40,11 @@ packages = { find = { where = ["."], include = ["ecoli_3d*"] } }
 # vivarium-workbench). Keep in sync with v2ecoli's pyproject.
 v2ecoli = { git = "https://github.com/vivarium-collective/v2ecoli.git", branch = "main" }
 viva-workspace = { git = "https://github.com/vivarium-collective/viva-workspace.git", branch = "main" }
-process-bigraph = { git = "https://github.com/vivarium-collective/process-bigraph.git", branch = "main" }
+# Pinned to the same rev v2ecoli + viva-parsimony pin (process-bigraph #209,
+# `process_bigraph.events`): a transitive consumer requires this exact SHA, so a
+# bare branch=main here produces a "conflicting URLs for process-bigraph" resolve
+# error. Keep in sync with v2ecoli's pin.
+process-bigraph = { git = "https://github.com/vivarium-collective/process-bigraph.git", rev = "55b70676cb4d91a03d6cccb32a91b7a0e62f2842" }
 bigraph-schema = { git = "https://github.com/vivarium-collective/bigraph-schema.git", branch = "main" }
 viva-superpowers = { git = "https://github.com/vivarium-collective/viva-superpowers.git", branch = "main" }
 viva-copasi = { git = "https://github.com/vivarium-collective/viva-copasi.git", branch = "main" }
@@ -64,4 +73,8 @@ markers = [
 # single precise (commit-pinned) requirement so the whole closure resolves.
 override-dependencies = [
     "viva-basic-processes @ git+https://github.com/vivarium-collective/viva-basic-processes.git@3f7d64ee06337c8887d8db6d47b0bdfc6dea0093",
+    # Same conflicting-URL trap for process-bigraph: viva-parsimony pins it to a
+    # SHA (#209 events) while another consumer direct-URLs @main. Force the single
+    # SHA across the whole graph (matches v2ecoli's [tool.uv.sources] pin).
+    "process-bigraph @ git+https://github.com/vivarium-collective/process-bigraph.git@55b70676cb4d91a03d6cccb32a91b7a0e62f2842",
 ]
