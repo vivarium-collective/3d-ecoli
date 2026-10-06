@@ -5,6 +5,7 @@ runs every tick, packs a snapshot the first time its scheduled time arrives.
 from __future__ import annotations
 
 from process_bigraph import Step
+from bigraph_schema.contract import ProcessContract
 
 from ecoli_3d.build import (
     pack_from_state, bulk_to_counts, bulk_to_locations,
@@ -37,6 +38,63 @@ class EcoliPackStep(Step):
     ``MarkDPeriod``). Each name fires at most once, within
     ``config["epsilon_s"]`` of its target time.
     """
+
+    # Formal contract rendered in the Composite Explorer / loom viewer
+    # (bigraph_schema.contract.ProcessContract): summary + method equations +
+    # port/config semantics. Describes WHAT this Step does (schedule → pack),
+    # not the surrounding composite wiring.
+    contract = ProcessContract(
+        summary=(
+            "Captures 3D structural snapshots of the simulated cell at chosen "
+            "points in the cell cycle. It watches the running whole-cell model "
+            "and, at each requested moment — a fixed time, or the moment of "
+            "division — freezes the state into a 3D model: the most abundant "
+            "molecules placed at their copy numbers inside a cell-shaped "
+            "envelope sized to the current cell volume, with the chromosome(s), "
+            "replication forks, and RNA polymerases positioned at their real "
+            "genomic locations. Each requested snapshot is captured once."
+        ),
+        math=[
+            "capture when   t ≥ τ − ε                 (each snapshot fires once)",
+            "τ = t_div = min( dᵢ : dᵢ > 0 )            (for a snapshot requested 'at division')",
+            "V_envelope = V_cell(t)                    (3D envelope sized to the cell's volume)",
+            "N = top_n species, ranked by copy number",
+        ],
+        symbols={
+            "t": "simulation time",
+            "τ": "the snapshot's scheduled time — either a fixed time, or the cell's division time",
+            "ε": "timing tolerance for firing a snapshot (seconds; default 1.0)",
+            "dᵢ": "scheduled division time of chromosome copy i (set once the cell commits to dividing); an 'at division' snapshot fires at the earliest of these",
+            "V_cell(t)": "the cell's volume at time t, which sets the size of the 3D cell-shaped (capsule) envelope",
+            "N": "number of most-abundant molecular species included in the model (config 'top_n', default 40)",
+            "scale": "copy-number / packing-density scale factor (default 0.3)",
+        },
+        inputs={
+            "bulk": "Copy numbers (and sub-cellular locations) of the cell's bulk molecules — the material placed into the 3D model.",
+            "shape": "Current cell geometry; its volume sizes the 3D cell-shaped envelope.",
+            "global_time": "Current simulation time — the scheduler clock.",
+            "full_chromosome": "The chromosome copies present, and their scheduled division time (drives 'at division' snapshots and the copy count).",
+            "active_RNAP": "Active RNA polymerases with their genomic coordinates — placed at their real loci on the chromosome.",
+            "active_replisome": "Active replication forks and their progress along the chromosome.",
+            "chromosome_domain": "The replication-domain tree, used to assign each RNA polymerase and fork to the correct chromosome copy.",
+        },
+        outputs={
+            "pack_status": "For each snapshot captured this step, the number of molecules placed. Side effect: writes the 3D model (geometry + metadata) to disk.",
+        },
+        config={
+            "snapshots": "What to capture: a map of snapshot name → time in seconds, or the keyword 'division_time'.",
+            "top_n": "How many of the most-abundant molecular species to include (default 40).",
+            "scale": "Copy-number / packing-density scale factor (default 0.3).",
+            "epsilon_s": "Timing tolerance for firing a snapshot (seconds; default 1.0).",
+            "out_dir": "Directory the 3D model files are written to.",
+        },
+        assumptions=[
+            "Each snapshot is a one-time capture: the step runs every cycle but acts only when a scheduled moment is reached, and each named snapshot fires exactly once.",
+            "An 'at division' snapshot fires at the earliest scheduled division time across the chromosome copies.",
+            "A snapshot waits (and retries) until the cell geometry is available, so its envelope is always sized to a real volume.",
+            "Only the most abundant species are placed; the positions of chromosomes, replication forks, and RNA polymerases are taken live from the simulation, not approximated.",
+        ],
+    )
 
     # NOTE: this bigraph-schema version has no registered ``any``/``tree[any]``
     # type (parsing "tree[any]" raises — "any" isn't in the type registry), so
