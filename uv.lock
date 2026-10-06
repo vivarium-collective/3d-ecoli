@@ -4506,7 +4506,7 @@ wheels = [
 [[package]]
 name = "v2ecoli"
 version = "0.1.0"
-source = { git = "https://github.com/vivarium-collective/v2ecoli.git?branch=main#b725a22d584d79abd5e8e02fd9201e1efc906c2f" }
+source = { git = "https://github.com/vivarium-collective/v2ecoli.git?branch=main#ae0f72ec6ccdf1d8667c3a798accac480718f45e" }
 dependencies = [
     { name = "altair" },
     { name = "bigraph-schema" },
