@@ -45,56 +45,54 @@ class EcoliPackStep(Step):
     # not the surrounding composite wiring.
     contract = ProcessContract(
         summary=(
-            "Snapshot packer. The Step runs every tick but acts only when a "
-            "scheduled snapshot time arrives: for each declared name it waits "
-            "until the target sim-time (or the cell's division time) is "
-            "reached, then selects the top_n most-abundant species and places "
-            "them — together with the live chromosome-copy, replication-fork, "
-            "and RNAP-locus state — into a capsule envelope sized from the "
-            "cell's current volume, writing a parsimony 3D pack to out_dir. "
-            "Each name fires at most once."
+            "Captures 3D structural snapshots of the simulated cell at chosen "
+            "points in the cell cycle. It watches the running whole-cell model "
+            "and, at each requested moment — a fixed time, or the moment of "
+            "division — freezes the state into a 3D model: the most abundant "
+            "molecules placed at their copy numbers inside a cell-shaped "
+            "envelope sized to the current cell volume, with the chromosome(s), "
+            "replication forks, and RNA polymerases positioned at their real "
+            "genomic locations. Each requested snapshot is captured once."
         ),
         math=[
-            "fire(name)   when   t ≥ τ(name) − ε   and   name ∉ fired        (each name fires once)",
-            "τ(name) = spec                                            (fixed sim-time, seconds)",
-            "τ(name) = min( d_i > 0 )   over full_chromosome.division_time   (spec = 'division_time')",
-            "skip (do NOT fire) when   volume_fl ≤ 0                    (shape not written yet this tick)",
-            "pack = place( top_n most-abundant species , scale , envelope(volume_fl) )",
-            "(n_chromosomes, fork_fraction) ← (full_chromosome, active_replisome)",
-            "rnaps ← (active_RNAP, full_chromosome, chromosome_domain)   (genomic loci → chromosome copy)",
-            "pack_status[name] = n_placed",
+            "capture when   t ≥ τ − ε                 (each snapshot fires once)",
+            "τ = t_div = min( dᵢ : dᵢ > 0 )            (for a snapshot requested 'at division')",
+            "V_envelope = V_cell(t)                    (3D envelope sized to the cell's volume)",
+            "N = top_n species, ranked by copy number",
         ],
         symbols={
-            "t": "current simulation time (s), read from the global_time port",
-            "τ(name)": "target sim-time for a snapshot (s): the fixed spec, or the resolved division time",
-            "ε": "firing tolerance (s), config 'epsilon_s' (default 1.0)",
-            "d_i": "per-chromosome-copy division_time (s); positive once MarkDPeriod schedules division",
-            "fired": "set of snapshot names already packed (each fires at most once)",
-            "top_n": "number of most-abundant species packed, config 'top_n' (default 40)",
-            "scale": "structural packing scale factor, config 'scale' (default 0.3)",
-            "volume_fl": "current cell volume (fL), read from the shape port (ShapeStep output)",
-            "n_chromosomes": "live chromosome-copy count, derived from full_chromosome",
-            "fork_fraction": "replication-fork progress (0–1), derived from active_replisome",
-            "n_placed": "number of ingredient instances actually placed in the pack",
+            "t": "simulation time",
+            "τ": "the snapshot's scheduled time — either a fixed time, or the cell's division time",
+            "ε": "timing tolerance for firing a snapshot (seconds; default 1.0)",
+            "dᵢ": "scheduled division time of chromosome copy i (set once the cell commits to dividing); an 'at division' snapshot fires at the earliest of these",
+            "V_cell(t)": "the cell's volume at time t, which sets the size of the 3D cell-shaped (capsule) envelope",
+            "N": "number of most-abundant molecular species included in the model (config 'top_n', default 40)",
+            "scale": "copy-number / packing-density scale factor (default 0.3)",
         },
         inputs={
-            "bulk": "Live ['bulk'] structured-array store (bulk_array) — bulk molecule counts and locations.",
-            "shape": "Flat cell-geometry dict (map[overwrite[float]]) from ShapeStep; volume_fl sizes the capsule envelope.",
-            "global_time": "Current simulation time (s) — the scheduler clock.",
-            "full_chromosome": "v2ecoli unique_array of chromosome copies; carries per-copy division_time (used for 'division_time' scheduling) and the copy count.",
-            "active_RNAP": "v2ecoli unique_array of active RNAPs with genomic coordinates/domain/strand — precise RNAP placement.",
-            "active_replisome": "v2ecoli unique_array of replication forks (fork_fraction) — replication progress.",
-            "chromosome_domain": "v2ecoli unique_array domain parent/child tree — classifies each RNAP onto its chromosome copy / daughter.",
+            "bulk": "Copy numbers (and sub-cellular locations) of the cell's bulk molecules — the material placed into the 3D model.",
+            "shape": "Current cell geometry; its volume sizes the 3D cell-shaped envelope.",
+            "global_time": "Current simulation time — the scheduler clock.",
+            "full_chromosome": "The chromosome copies present, and their scheduled division time (drives 'at division' snapshots and the copy count).",
+            "active_RNAP": "Active RNA polymerases with their genomic coordinates — placed at their real loci on the chromosome.",
+            "active_replisome": "Active replication forks and their progress along the chromosome.",
+            "chromosome_domain": "The replication-domain tree, used to assign each RNA polymerase and fork to the correct chromosome copy.",
         },
         outputs={
-            "pack_status": "map[float] {snapshot_name: n_placed} for snapshots packed this tick (empty when nothing fires). Side effect: writes pack.json + meta.json under out_dir.",
+            "pack_status": "For each snapshot captured this step, the number of molecules placed. Side effect: writes the 3D model (geometry + metadata) to disk.",
+        },
+        config={
+            "snapshots": "What to capture: a map of snapshot name → time in seconds, or the keyword 'division_time'.",
+            "top_n": "How many of the most-abundant molecular species to include (default 40).",
+            "scale": "Copy-number / packing-density scale factor (default 0.3).",
+            "epsilon_s": "Timing tolerance for firing a snapshot (seconds; default 1.0).",
+            "out_dir": "Directory the 3D model files are written to.",
         },
         assumptions=[
-            "Packing is a snapshot (one-shot per name), not a time-stepping update — the Step runs every tick but acts only when a scheduled time is reached.",
-            "Each snapshot name fires at most once, within epsilon_s of its target time; 'division_time' resolves to the earliest positive per-copy division_time.",
-            "A snapshot is skipped and retried next tick (NOT marked fired) when volume_fl ≤ 0, i.e. ShapeStep has not yet written geometry this tick.",
-            "Only the top_n most-abundant species are packed, at the given scale; placement is into a capsule envelope sized from the live cell volume.",
-            "Chromosome-copy count, fork progress, and RNAP loci are read LIVE from the unique-molecule stores at each firing, not approximated.",
+            "Each snapshot is a one-time capture: the step runs every cycle but acts only when a scheduled moment is reached, and each named snapshot fires exactly once.",
+            "An 'at division' snapshot fires at the earliest scheduled division time across the chromosome copies.",
+            "A snapshot waits (and retries) until the cell geometry is available, so its envelope is always sized to a real volume.",
+            "Only the most abundant species are placed; the positions of chromosomes, replication forks, and RNA polymerases are taken live from the simulation, not approximated.",
         ],
     )
 
