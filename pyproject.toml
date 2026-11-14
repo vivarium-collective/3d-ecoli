@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,7 @@ name = "ecoli-3d"
 version = "0.1.0"
 description = "3D structural model of an E. coli cell — packs a v2ecoli molecular state into a 3D cell via viva-parsimony"
 readme = "README.md"
+license = "Apache-2.0"
 requires-python = "==3.12.12"
 dependencies = [
     # the molecular state + cell-envelope geometry (ShapeStep) come from v2ecoli;
