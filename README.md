@@ -7,11 +7,12 @@ at true abundance inside the cell envelope, driven by a whole-cell simulation.
 
 [![live viewer](https://img.shields.io/badge/live%20viewer-open-2ea44f)](https://pub-eb913fbbdc584bd7add047c823570b13.r2.dev/viewer/index.html)
 [![python](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
-[![imports](https://img.shields.io/badge/imports-v2ecoli%20%2B%20pbg--parsimony-555)](#how-it-works)
+[![imports](https://img.shields.io/badge/imports-v2ecoli%20%2B%20viva--parsimony-555)](#how-it-works)
+[![license](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
 It couples the **[v2ecoli](https://github.com/vivarium-collective/v2ecoli)**
 whole-cell model (molecular composition + cell geometry) to the
-**[pbg-parsimony](https://github.com/vivarium-collective/pbg-parsimony)** packing
+**[viva-parsimony](https://github.com/vivarium-collective/viva-parsimony)** packing
 engine (a cellPACK-style placer with a Rust core), then renders the result in the
 browser.
 
@@ -41,14 +42,14 @@ inside the cell envelope:
 ```
 v2ecoli  ──(molecular state + ShapeStep cell envelope)──┐
                                                          ├──▶  ecoli_3d  ──▶  3D pack + viewer
-pbg-parsimony  ──(Ingredient / Chromosome / build_pack engine)──┘
+viva-parsimony ──(Ingredient / Chromosome / build_pack engine)──┘
 ```
 
 `ecoli_3d` **imports** both repos — it does not vendor them:
 
 - **v2ecoli** supplies the cell state (via `build_composite("baseline")` or a saved
   snapshot) and the cell envelope (`v2ecoli.cell_shape.ShapeStep`).
-- **pbg-parsimony** supplies the packing engine (`Ingredient` / `Chromosome` /
+- **viva-parsimony** supplies the packing engine (`Ingredient` / `Chromosome` /
   `build_pack`) with its Rust geometry core.
 
 This repo holds only the **bridge**: selecting species, mapping them to real
@@ -94,7 +95,7 @@ stack. Clone the repo and sync from the committed lockfile (Python 3.12.12):
 uv sync          # fresh, reproducible install of the whole closure from uv.lock
 ```
 
-Or add it to an environment that already has v2ecoli + pbg-parsimony (e.g. a
+Or add it to an environment that already has v2ecoli + viva-parsimony (e.g. a
 v2ecoli checkout's `.venv`):
 
 ```bash
@@ -104,7 +105,7 @@ uv pip install -e . --no-deps
 `requires-python == 3.12.12` (inherited from v2ecoli). Run the tests with
 `pytest` (the migrated unit suite passes against a post-extraction v2ecoli).
 
-> **Dependency note.** The v2ecoli stack pulls `pbg-basic-processes` through
+> **Dependency note.** The v2ecoli stack pulls `viva-basic-processes` through
 > several packages via branch-pinned git URLs that uv won't unify ("conflicting
 > URLs"). `[tool.uv] override-dependencies` pins it to a single commit and the
 > committed `uv.lock` records the full resolution, so `uv sync` installs cleanly
@@ -117,3 +118,9 @@ Prototyped inside `v2ecoli/structural/` (June 2026), then extracted into this
 importing workspace so v2ecoli stays focused on the simulation. The earlier
 fork-based predecessor design is preserved in
 [`docs/history/`](docs/history/).
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE).
+
+*A project of the [Vivarium Collective](https://github.com/vivarium-collective).*
