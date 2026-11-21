@@ -1,20 +1,31 @@
-"""Vivarium-workbench analysis viewers contributed by ecoli_3d.
+"""Vivarium-workbench analysis viewer contributed by ecoli_3d.
 
 The workbench (vivarium-workbench) discovers a ``<pkg>.workbench_viewers`` module
 on the workspace package and every installed ``pbg-*``/``viva-*`` distribution,
-and calls its ``get_viewers(ws_root)`` to render extra cards on the Analyses
-page. This is the generic contribution seam; ecoli_3d uses it to ship the
-**3D E. coli viewer** deep-link — a launcher card that opens a study's saved
-parsimony 3D pack in the hosted (Cloudflare R2) viewer.
+and calls its ``get_viewers(ws_root)`` to render extra cards on the Explore tab.
+This is the generic contribution seam.
 
-Ported from v2ecoli's ``v2ecoli/workbench_viewers.py``, which also shipped a
-Pathway Tools Omics Viewer launcher — that one stays v2ecoli's (it needs
-v2ecoli's ptools TSV exports and ``ui.ptools_server_url`` config, neither of
-which apply here).
+ecoli_3d ships the **3D E. coli viewer** through it as an ``embed-3d`` viewer.
+The workbench core holds NO parsimony-specific knowledge: it serves the viewer
+webapp generically from whatever package the descriptor names in
+``bundle_package`` (here ``viva_parsimony``, which ships its ``viewer/`` webapp as
+package data) at ``/contributed-viewer/viva_parsimony/``, and matches the
+``3d_pack`` capability against the studies that have a saved 3D pack
+(``viz/3d/*.pack.json``). So the 3D viewer appears exactly in a workspace with a
+3D pack and the viewer package installed — and nowhere else — without any
+hardcoding in the workbench.
+
+A study may still override to a hosted viewer (e.g. assets on Cloudflare R2) via
+``ui.viz_viewer_urls`` in workspace.yaml; the workbench prefers that hosted URL
+over the local bundle when present.
 """
 from __future__ import annotations
 
 from pathlib import Path
+
+#: The distribution whose ``viewer/`` webapp the workbench serves for this tool.
+#: ``viva_parsimony`` ships the parsimony 3D viewer bundle as package data.
+VIEWER_BUNDLE_PACKAGE = "viva_parsimony"
 
 
 def _studies_root(ws_root: Path) -> Path:
@@ -26,60 +37,34 @@ def _studies_root(ws_root: Path) -> Path:
 
 
 def _has_3d_pack(ws_root) -> bool:
-    """Cheap check: does any study have a saved parsimony 3D pack?"""
-    root = _studies_root(Path(ws_root))
+    """Cheap check: does any study have a saved 3D pack?"""
+    try:
+        root = _studies_root(Path(ws_root))
+    except Exception:
+        return False
     return bool(root.is_dir() and next(root.glob("*/viz/3d/*.pack.json"), None))
 
 
-def _ecoli_3d_targets(ws_root) -> list:
-    """Studies with a saved parsimony 3D pack → a deep-link to the HOSTED viewer.
-
-    Reuses the workbench's saved-visualizations builder (which computes the public
-    ``viewer_url`` for each 3D pack). Each target carries an external ``href`` so
-    it opens directly in both the live workbench and the read-only dashboard —
-    the hosted viewer needs no local launch backend.
-    """
-    try:
-        from vivarium_workbench.lib import saved_visualizations as _sv
-        payload = _sv.build_saved_visualizations(Path(ws_root))
-    except Exception:
-        return []
-    out = []
-    for item in (payload.get("saved") or []):
-        url = item.get("viewer_url")
-        if not url:
-            continue
-        n = item.get("n_placed")
-        detail = f"{n:,} molecules placed" if isinstance(n, int) else "hosted 3D view"
-        out.append({
-            "study": item.get("study"),
-            "label": item.get("study"),
-            "detail": detail,
-            "href": url,
-        })
-    return out
-
-
 def get_viewers(ws_root) -> list:
-    """Contribute the analysis viewer ecoli_3d ships:
+    """Contribute the **3D E. coli viewer** as a generic ``embed-3d`` tool.
 
-    * **3D E. coli viewer** (deep-link to the hosted parsimony 3D viewer; available
-      wherever a study has a saved 3D pack, including the read-only dashboard).
-
-    The Data Explorer (timeseries / scatter / flux maps for any run) is the
-    workbench's own built-in and is shown alongside this automatically.
+    The workbench matches its ``requires: ["3d_pack"]`` against the studies with a
+    saved 3D pack, and serves its webapp from ``bundle_package``'s ``viewer/`` dir
+    at ``/contributed-viewer/<bundle_package>/``. Hosted ``viewer_url`` (from
+    ``ui.viz_viewer_urls``) wins over the local bundle when present.
     """
     return [
         {
-            "id": "ecoli-3d",
+            "id": "ecoli-3d",   # kept: existing ui.analysis_tools_exclude configs refer to it
             "title": "3D E. coli viewer",
             "description": (
                 "Open an interactive 3D molecular view of the cell — every "
-                "molecule placed in real 3D space by parsimony — in the hosted "
-                "viewer."
+                "molecule placed in real 3D space by parsimony — for a study's "
+                "saved 3D pack."
             ),
-            "kind": "launcher",
+            "kind": "embed-3d",
+            "requires": ["3d_pack"],
+            "bundle_package": VIEWER_BUNDLE_PACKAGE,
             "applies": _has_3d_pack,
-            "targets": _ecoli_3d_targets,
         },
     ]
